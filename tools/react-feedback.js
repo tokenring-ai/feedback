@@ -2,7 +2,7 @@
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import moment from 'moment-timezone';
+import moment from "moment-timezone";
 import express from "express";
 import esbuild from "esbuild";
 import open from "open";
@@ -22,71 +22,85 @@ const TMP_PREFIX = "react-preview-";
  * @param {object} args Tool arguments: { file: string, code: string, exampleProps: object }
  * @param {TokenRingRegistry} registry - The package registry
  */
-export const description = "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
-export const parameters = z.object({
-  code: z.string().describe("The complete source code of the React component to be previewed. This should be valid JSX/TSX that can be bundled and rendered in the browser."),
-  file: z.string().optional().describe("The filename/path of the React component to be previewed")
-}).strict();
+export const description =
+	"This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
+export const parameters = z
+	.object({
+		code: z
+			.string()
+			.describe(
+				"The complete source code of the React component to be previewed. This should be valid JSX/TSX that can be bundled and rendered in the browser.",
+			),
+		file: z
+			.string()
+			.optional()
+			.describe("The filename/path of the React component to be previewed"),
+	})
+	.strict();
 
 export default execute;
-export async function execute({file, code}, registry) {
- const fileSystem = registry.requireFirstServiceByType(FileSystemService);
- if (file == null) file = `React-Component-Preview-${new Date().toISOString()}.jsx`;
+export async function execute({ file, code }, registry) {
+	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+	if (file == null)
+		file = `React-Component-Preview-${new Date().toISOString()}.jsx`;
 
- // 1. Create a temp workspace
- const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
- const jsxPath = path.join(tmp, file);
- await fs.writeFile(jsxPath, code, "utf8");
+	// 1. Create a temp workspace
+	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
+	const jsxPath = path.join(tmp, file);
+	await fs.writeFile(jsxPath, code, "utf8");
 
- // 2. Bundle with esbuild
- const bundlePath = path.join(tmp, "bundle.js");
- await esbuild.build({
-  entryPoints: [jsxPath],
-  outfile: bundlePath,
-  bundle: true,
-  jsx: "automatic",
-  platform: "browser",
-  external: ["react", "react-dom", "react/jsx-runtime"],
-  globalName: "window.App",
-  plugins: [
-   externalGlobalPlugin.externalGlobalPlugin({
-    'react': 'window.React',
-    'react-dom': 'window.ReactDOM',
-    'react/jsx-runtime': 'window.JSX',
-    'jQuery': '$'
-   })
-  ]
- });
+	// 2. Bundle with esbuild
+	const bundlePath = path.join(tmp, "bundle.js");
+	await esbuild.build({
+		entryPoints: [jsxPath],
+		outfile: bundlePath,
+		bundle: true,
+		jsx: "automatic",
+		platform: "browser",
+		external: ["react", "react-dom", "react/jsx-runtime"],
+		globalName: "window.App",
+		plugins: [
+			externalGlobalPlugin.externalGlobalPlugin({
+				react: "window.React",
+				"react-dom": "window.ReactDOM",
+				"react/jsx-runtime": "window.JSX",
+				jQuery: "$",
+			}),
+		],
+	});
 
- // 3. Make index.html
- const html = genHTML({bundlePath: "./bundle.js"});
- await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
+	// 3. Make index.html
+	const html = genHTML({ bundlePath: "./bundle.js" });
+	await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
 
- // 4. Spin up preview server
- const {resultPromise, stop} = await startServer(tmp, registry);
+	// 4. Spin up preview server
+	const { resultPromise, stop } = await startServer(tmp, registry);
 
- // 5. Launch browser & await user choice
- await open(resultPromise.url);
- const result = await resultPromise;
+	// 5. Launch browser & await user choice
+	await open(resultPromise.url);
+	const result = await resultPromise;
 
- // 6. If accepted ➜ copy into repo
- if (result.status === "accept") {
-  await fileSystem.writeFile(file, code);
- } else {
-  const rejectFile = file.replace(/\./, `.rejected${moment().format("YYYYMMDD-HH:mm")}.`);
-  await fileSystem.writeFile(rejectFile, code);
- }
+	// 6. If accepted ➜ copy into repo
+	if (result.status === "accept") {
+		await fileSystem.writeFile(file, code);
+	} else {
+		const rejectFile = file.replace(
+			/\./,
+			`.rejected${moment().format("YYYYMMDD-HH:mm")}.`,
+		);
+		await fileSystem.writeFile(rejectFile, code);
+	}
 
- await fs.rmdir(tmp, {recursive: true});
+	await fs.rmdir(tmp, { recursive: true });
 
- // 7. Cleanup
- stop();
+	// 7. Cleanup
+	stop();
 
- return result;
+	return result;
 }
 
-function genHTML({bundlePath}) {
- return `<!doctype html>
+function genHTML({ bundlePath }) {
+	return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8"/>
@@ -141,27 +155,29 @@ function genHTML({bundlePath}) {
 }
 
 async function startServer(tmpDir, registry) {
- const chatService = registry.requireFirstServiceByType(ChatService);
+	const chatService = registry.requireFirstServiceByType(ChatService);
 
- const app = express();
- app.use("/", express.static(tmpDir));
- let resolveResult;
- const resultPromise = new Promise((r) => (resolveResult = r));
- app.post("/result", (req, res) => {
-  let buf = "";
-  req.on("data", (c) => (buf += c));
-  req.on("end", () => {
-   res.end("ok");
-   resolveResult(JSON.parse(buf));
-  });
- });
- const server = http.createServer(app);
- await new Promise((r) => server.listen(0, r));
- const port = server.address().port;
- chatService.systemLine(`Preview running on http://localhost:${port}/index.html`);
- resultPromise.url = `http://localhost:${port}/index.html`;
- return {
-  resultPromise,
-  stop: () => server.close(),
- };
+	const app = express();
+	app.use("/", express.static(tmpDir));
+	let resolveResult;
+	const resultPromise = new Promise((r) => (resolveResult = r));
+	app.post("/result", (req, res) => {
+		let buf = "";
+		req.on("data", (c) => (buf += c));
+		req.on("end", () => {
+			res.end("ok");
+			resolveResult(JSON.parse(buf));
+		});
+	});
+	const server = http.createServer(app);
+	await new Promise((r) => server.listen(0, r));
+	const port = server.address().port;
+	chatService.systemLine(
+		`Preview running on http://localhost:${port}/index.html`,
+	);
+	resultPromise.url = `http://localhost:${port}/index.html`;
+	return {
+		resultPromise,
+		stop: () => server.close(),
+	};
 }
