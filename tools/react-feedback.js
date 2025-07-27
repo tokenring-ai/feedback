@@ -11,7 +11,7 @@ import { z } from "zod";
 /* ---------------- sample test ---------------- */
 import ChatService from "@token-ring/chat/ChatService";
 import { FileSystemService } from "@token-ring/filesystem";
-import externalGlobalPlugin from "esbuild-plugin-external-global";
+import { externalGlobalPlugin } from "esbuild-plugin-external-global";
 
 //const {externalGlobalPlugin} = tmp.;
 
