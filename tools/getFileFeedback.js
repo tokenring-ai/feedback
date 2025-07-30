@@ -1,11 +1,11 @@
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
-import moment from "moment-timezone";
-import express from "express";
-import open from "open";
 import http from "http";
+import os from "os";
+import path from "path";
+import express from "express";
+import fs from "fs/promises";
 import { marked } from "marked";
+import moment from "moment-timezone";
+import open from "open";
 import { z } from "zod";
 
 import ChatService from "@token-ring/chat/ChatService";
@@ -112,15 +112,17 @@ export async function execute(
 
 function escapeHTML(str) {
 	if (typeof str !== "string") return "";
-	return str.replace(/[&<>"']/g, function (match) {
-		return {
-			"&": "&amp;",
-			"<": "&lt;",
-			">": "&gt;",
-			'"': "&quot;",
-			"'": "&#39;",
-		}[match];
-	});
+	return str.replace(
+		/[&<>"']/g,
+		(match) =>
+			({
+				"&": "&amp;",
+				"<": "&lt;",
+				">": "&gt;",
+				'"': "&quot;",
+				"'": "&#39;",
+			})[match],
+	);
 }
 
 // genFileViewHTML now takes contentString and htmlContentPath (for text/html iframe)
