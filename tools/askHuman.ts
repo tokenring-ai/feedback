@@ -1,11 +1,11 @@
-// tools/feedback/tools/askHuman.js
+import type { Registry } from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
 import { z } from "zod";
 
 /**
  * Allows the AI to ask the human a question about the current task.
- * @param {object} args Tool arguments: { question: string, choices?: string[], response_type?: "text" | "single" | "multiple" }
- * @param {TokenRingRegistry} registry - The package registry
+ * @param args Tool arguments: { question: string, choices?: string[], response_type?: "text" | "single" | "multiple" }
+ * @param registry - The package registry
  */
 export const description =
 	"This tool allows the AI to ask the human a question about the current task and receive their response. It supports textual answers, as well as single-choice and multiple-choice questions when options are provided. Use the 'response_type' parameter ('text', 'single', 'multiple') to specify the expected answer format.";
@@ -26,8 +26,31 @@ export const parameters = z.object({
 		.optional(),
 });
 
+export type AskHumanParams = z.infer<typeof parameters>;
+
+interface AskHumanBase {
+	question: string;
+	response_type: "text" | "single" | "multiple";
+	timestamp: string;
+	message: string;
+}
+
+export interface AskHumanTextResult extends AskHumanBase {
+	status: "question_asked_text";
+}
+
+export interface AskHumanChoicesResult extends AskHumanBase {
+	status: "question_asked_choices";
+	choices: string[];
+}
+
+export type AskHumanResult = AskHumanTextResult | AskHumanChoicesResult;
+
 export default execute;
-export async function execute(args, registry) {
+export async function execute(
+	args: AskHumanParams,
+	registry: Registry,
+): Promise<AskHumanResult> {
 	const { question, choices, response_type: argResponseType } = args;
 	const chatService = registry.requireFirstServiceByType(ChatService);
 
@@ -52,7 +75,7 @@ export async function execute(args, registry) {
 		chatService.systemLine(message);
 
 		return {
-			status: "question_asked_choices", // Generic status for when choices are involved
+			status: "question_asked_choices",
 			question,
 			choices,
 			response_type: finalResponseType,
@@ -68,7 +91,7 @@ export async function execute(args, registry) {
 		chatService.systemLine(`AI is asking: ${question}`);
 
 		return {
-			status: "question_asked_text", // Generic status for text questions
+			status: "question_asked_text",
 			question,
 			response_type: finalResponseType,
 			timestamp: new Date().toISOString(),

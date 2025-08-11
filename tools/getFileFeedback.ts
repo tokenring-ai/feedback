@@ -2,9 +2,10 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import type { Registry } from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
 import { FileSystemService } from "@token-ring/filesystem";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import { marked } from "marked";
 import moment from "moment-timezone";
 import open from "open";
@@ -30,11 +31,20 @@ export const parameters = z
 	})
 	.strict();
 
+export type GetFileFeedbackParams = z.infer<typeof parameters>;
+
+export interface GetFileFeedbackResult {
+	status: "accepted" | "rejected";
+	comment?: string;
+	filePath?: string;
+	rejectedFilePath?: string;
+}
+
 export default execute;
 export async function execute(
-	{ filePath, content, contentType = "text/plain" },
-	registry,
-) {
+	{ filePath, content, contentType = "text/plain" }: GetFileFeedbackParams,
+	registry: Registry,
+): Promise<GetFileFeedbackResult> {
 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 	const chatService = registry.requireFirstServiceByType(ChatService);
 
@@ -61,19 +71,22 @@ export async function execute(
 	await fs.writeFile(path.join(tmpDir, "index.html"), indexHtmlContent, "utf8");
 
 	// 3. Spin up preview server
-	const { resultPromise, stop } = await startFileReviewServer(tmpDir, registry);
+	const { resultPromise, url, stop } = await startFileReviewServer(
+		tmpDir,
+		registry,
+	);
 
 	// 4. Launch browser & await user choice
 	// In a real scenario, `open` would be called. For testing, we might skip this.
-	if (typeof open === "function") {
-		await open(resultPromise.url);
-		chatService.systemLine(`File review UI opened at: ${resultPromise.url}`);
+	if (typeof (open as unknown as Function) === "function") {
+		await open(url);
+		chatService.systemLine(`File review UI opened at: ${url}`);
 	} else {
 		chatService.systemLine(
-			`File review UI available at: ${resultPromise.url} (open command mocked/unavailable)`,
+			`File review UI available at: ${url} (open command mocked/unavailable)`,
 		);
 	}
-	const result = await resultPromise;
+	const result: { accepted: boolean; comment?: string } = await resultPromise;
 
 	// 5. If accepted ➜ copy into repo
 	if (result.accepted) {
@@ -94,7 +107,7 @@ export async function execute(
 	// 6. Cleanup
 	try {
 		await fs.rm(tmpDir, { recursive: true, force: true });
-	} catch (err) {
+	} catch (err: any) {
 		chatService.errorLine(
 			`Error cleaning up temporary directory ${tmpDir}: ${err.message}`,
 		);
@@ -105,28 +118,32 @@ export async function execute(
 		status: result.accepted ? "accepted" : "rejected",
 		comment: result.comment,
 		filePath: result.accepted ? filePath : undefined,
-		rejectedFilePath: result.accepted ? undefined : filePath, // Keeping original path for rejected for clarity
+		rejectedFilePath: result.accepted ? undefined : filePath,
 	};
 }
 
-function escapeHTML(str) {
-	if (typeof str !== "string") return "";
-	return str.replace(
-		/[&<>"']/g,
-		(match) =>
-			({
-				"&": "&amp;",
-				"<": "&lt;",
-				">": "&gt;",
-				'"': "&quot;",
-				"'": "&#39;",
-			})[match],
-	);
+function escapeHTML(str: string) {
+	const map: Record<'&' | '<' | '>' | '"' | "'", string> = {
+		"&": "&amp;",
+		"<": "&lt;",
+		">": "&gt;",
+		'"': "&quot;",
+		"'": "&#39;",
+	};
+	return str.replace(/[&<>"']/g, (match: string) => map[match as keyof typeof map]);
 }
 
 // genFileViewHTML now takes contentString and htmlContentPath (for text/html iframe)
-function genFileViewHTML({ contentString, contentType, htmlContentPath }) {
-	let displayContentHtml;
+function genFileViewHTML({
+	contentString,
+	contentType,
+	htmlContentPath,
+}: {
+	contentString: string;
+	contentType: string;
+	htmlContentPath?: string;
+}) {
+	let displayContentHtml: string;
 	let effectiveContentType = contentType; // To show in the UI
 
 	if (contentType === "text/markdown" || contentType === "text/x-markdown") {
@@ -208,38 +225,45 @@ function genFileViewHTML({ contentString, contentType, htmlContentPath }) {
 </html>`;
 }
 
-async function startFileReviewServer(tmpDir, registry) {
+async function startFileReviewServer(tmpDir: string, registry: Registry) {
 	const chatService = registry.requireFirstServiceByType(ChatService);
 	const app = express();
 	app.use(express.json()); // Middleware to parse JSON bodies for /result
 	app.use("/", express.static(tmpDir)); // Serve files from tmpDir
 
-	let resolveResult;
-	const resultPromise = new Promise((r) => (resolveResult = r));
+	let resolveResult: (value: { accepted: boolean; comment?: string }) => void;
+	const resultPromise: Promise<{ accepted: boolean; comment?: string }> = new Promise(
+		(r) => (resolveResult = r),
+	);
 
-	app.post("/result", (req, res) => {
-		// Body already parsed by express.json()
-		const { accepted, comment } = req.body;
+	app.post("/result", (req: Request, res: Response) => {
+		// Body already parsed by express.tson()
+		const { accepted, comment } = req.body as {
+			accepted: boolean;
+			comment?: string;
+		};
 		res.status(200).send("ok");
 		resolveResult({ accepted, comment });
 		chatService.systemLine(
-			`Feedback received: \${accepted ? 'Accepted' : 'Rejected'}\${comment ? ' with comment: ' + comment : ''}`,
+			`Feedback received: ${accepted ? "Accepted" : "Rejected"}${
+				comment ? " with comment: " + comment : ""
+			}`,
 		);
 	});
 
 	const server = http.createServer(app);
-	await new Promise((resolve) => server.listen(0, resolve)); // Listen on a random available port
+	await new Promise<void>((resolve) => server.listen(0, () => resolve())); // Listen on a random available port
 
-	const port = server.address().port;
+	const address = server.address();
+	const port = typeof address === "string" ? 0 : (address?.port ?? 0);
 	const url = `http://localhost:${port}/index.html`;
 	chatService.systemLine(
 		`File review server running. Please navigate to: ${url}`,
 	);
-	resultPromise.url = url; // Attach URL to the promise for easy access
 
 	return {
 		resultPromise,
-		stop: () =>
-			server.close(() => chatService.systemLine("File review server stopped.")),
+		url,
+		stop: () => server.close(() => chatService.systemLine("File review server stopped.")),
 	};
 }

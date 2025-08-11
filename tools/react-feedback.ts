@@ -1,27 +1,23 @@
-/* ---------------- sample test ---------------- */
-
-// plugins/react-preview/index.js
 import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import type { Registry } from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
 import { FileSystemService } from "@token-ring/filesystem";
 import esbuild from "esbuild";
 import { externalGlobalPlugin } from "esbuild-plugin-external-global";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import moment from "moment-timezone";
 import open from "open";
 import { z } from "zod";
-
-//const {externalGlobalPlugin} = tmp.;
 
 const TMP_PREFIX = "react-preview-";
 
 /**
  * Render & review a React component in the browser.
- * @param {object} args Tool arguments: { file: string, code: string, exampleProps: object }
- * @param {TokenRingRegistry} registry - The package registry
+ * @param args Tool arguments: { file: string, code: string, exampleProps: object }
+ * @param registry - The package registry
  */
 export const description =
 	"This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
@@ -39,11 +35,28 @@ export const parameters = z
 	})
 	.strict();
 
+export type ReactFeedbackParams = z.infer<typeof parameters>;
+
+export interface ReactFeedbackResultAccepted {
+	status: "accept";
+	comment?: string;
+}
+export interface ReactFeedbackResultRejected {
+	status: "reject" | "rejected";
+	comment?: string;
+}
+export type ReactFeedbackResult =
+	| ReactFeedbackResultAccepted
+	| ReactFeedbackResultRejected;
+
 export default execute;
-export async function execute({ file, code }, registry) {
+export async function execute(
+	{ file, code }: ReactFeedbackParams,
+	registry: Registry,
+): Promise<ReactFeedbackResult> {
 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 	if (file == null)
-		file = `React-Component-Preview-${new Date().toISOString()}.jsx`;
+		file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
 	// 1. Create a temp workspace
 	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
@@ -51,7 +64,17 @@ export async function execute({ file, code }, registry) {
 	await fs.writeFile(jsxPath, code, "utf8");
 
 	// 2. Bundle with esbuild
-	const bundlePath = path.join(tmp, "bundle.js");
+	const bundlePath = path.join(tmp, "bundle.ts");
+	// Normalize plugins typing to the esbuild Plugin[] expected by our local esbuild
+	const plugins: esbuild.Plugin[] = [
+		(externalGlobalPlugin({
+			react: "window.React",
+			"react-dom": "window.ReactDOM",
+			"react/jsx-runtime": "window.JSX",
+			jQuery: "$",
+		}) as unknown) as esbuild.Plugin,
+	];
+
 	await esbuild.build({
 		entryPoints: [jsxPath],
 		outfile: bundlePath,
@@ -60,25 +83,18 @@ export async function execute({ file, code }, registry) {
 		platform: "browser",
 		external: ["react", "react-dom", "react/jsx-runtime"],
 		globalName: "window.App",
-		plugins: [
-			externalGlobalPlugin.externalGlobalPlugin({
-				react: "window.React",
-				"react-dom": "window.ReactDOM",
-				"react/jsx-runtime": "window.JSX",
-				jQuery: "$",
-			}),
-		],
+		plugins,
 	});
 
 	// 3. Make index.html
-	const html = genHTML({ bundlePath: "./bundle.js" });
+	const html = genHTML({ bundlePath: "./bundle.ts" });
 	await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
 
 	// 4. Spin up preview server
-	const { resultPromise, stop } = await startServer(tmp, registry);
+	const { resultPromise, url, stop } = await startServer(tmp, registry);
 
 	// 5. Launch browser & await user choice
-	await open(resultPromise.url);
+	await open(url);
 	const result = await resultPromise;
 
 	// 6. If accepted ➜ copy into repo
@@ -92,15 +108,15 @@ export async function execute({ file, code }, registry) {
 		await fileSystem.writeFile(rejectFile, code);
 	}
 
-	await fs.rmdir(tmp, { recursive: true });
+	await fs.rmdir(tmp, { recursive: true } as any);
 
 	// 7. Cleanup
 	stop();
 
-	return result;
+	return result as ReactFeedbackResult;
 }
 
-function genHTML({ bundlePath }) {
+function genHTML({ bundlePath }: { bundlePath: string }) {
 	return `<!doctype html>
 <html>
   <head>
@@ -121,8 +137,8 @@ function genHTML({ bundlePath }) {
     </div>
     <div id="root"></div>
 
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.ts"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.ts"></script>
     <script>window.JSX = { "jsx": React.createElement, "jsxs": React.createElement};</script>
     <script src="${bundlePath}"></script>
     <script>
@@ -155,30 +171,32 @@ function genHTML({ bundlePath }) {
 </html>`;
 }
 
-async function startServer(tmpDir, registry) {
+async function startServer(tmpDir: string, registry: Registry) {
 	const chatService = registry.requireFirstServiceByType(ChatService);
 
 	const app = express();
 	app.use("/", express.static(tmpDir));
-	let resolveResult;
-	const resultPromise = new Promise((r) => (resolveResult = r));
-	app.post("/result", (req, res) => {
+	let resolveResult: (value: ReactFeedbackResult) => void;
+	const resultPromise: Promise<ReactFeedbackResult> = new Promise(
+		(r) => (resolveResult = r),
+	);
+	app.post("/result", (req: Request, res: Response) => {
 		let buf = "";
-		req.on("data", (c) => (buf += c));
+		req.on("data", (c: Buffer) => (buf += c.toString()));
 		req.on("end", () => {
 			res.end("ok");
 			resolveResult(JSON.parse(buf));
 		});
 	});
 	const server = http.createServer(app);
-	await new Promise((r) => server.listen(0, r));
-	const port = server.address().port;
-	chatService.systemLine(
-		`Preview running on http://localhost:${port}/index.html`,
-	);
-	resultPromise.url = `http://localhost:${port}/index.html`;
+	await new Promise<void>((resolve) => server.listen(0, () => resolve(undefined)));
+	const addr = server.address();
+	const port = typeof addr === "object" && addr && "port" in addr ? (addr.port as number) : 0;
+	const url = `http://localhost:${port}/index.html`;
+	chatService.systemLine(`Preview running on ${url}`);
 	return {
 		resultPromise,
+		url,
 		stop: () => server.close(),
 	};
 }
