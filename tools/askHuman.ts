@@ -26,7 +26,11 @@ export const parameters = z.object({
 		.optional(),
 });
 
-export type AskHumanParams = z.infer<typeof parameters>;
+interface AskHumanParams {
+    question?: string;
+     choices?: string[];
+     response_type?: "text" | "single" | "multiple";
+}
 
 interface AskHumanBase {
 	question: string;
@@ -46,13 +50,17 @@ export interface AskHumanChoicesResult extends AskHumanBase {
 
 export type AskHumanResult = AskHumanTextResult | AskHumanChoicesResult;
 
-export default execute;
 export async function execute(
 	args: AskHumanParams,
 	registry: Registry,
-): Promise<AskHumanResult> {
+): Promise<string|AskHumanResult> {
 	const { question, choices, response_type: argResponseType } = args;
 	const chatService = registry.requireFirstServiceByType(ChatService);
+
+    if (!question) {
+        chatService.errorLine("Error: Question is required.");
+        return "Error: Question is required.";
+    }
 
 	let finalResponseType = argResponseType;
 

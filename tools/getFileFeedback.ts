@@ -31,8 +31,11 @@ export const parameters = z
 	})
 	.strict();
 
-export type GetFileFeedbackParams = z.infer<typeof parameters>;
-
+export interface GetFileFeedbackParams {
+    filePath?: string;
+    content?: string;
+    contentType?: string;
+}
 export interface GetFileFeedbackResult {
 	status: "accepted" | "rejected";
 	comment?: string;
@@ -40,13 +43,19 @@ export interface GetFileFeedbackResult {
 	rejectedFilePath?: string;
 }
 
-export default execute;
 export async function execute(
 	{ filePath, content, contentType = "text/plain" }: GetFileFeedbackParams,
 	registry: Registry,
-): Promise<GetFileFeedbackResult> {
+): Promise<string|GetFileFeedbackResult> {
 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 	const chatService = registry.requireFirstServiceByType(ChatService);
+
+    if (! filePath || ! content ) {
+        chatService.errorLine(
+            "Error: filePath and content are required parameters for getFileFeedback."
+        );
+        return "Error: filePath and content are required parameters for getFileFeedback.";
+    }
 
 	// 1. Create a temp workspace
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));

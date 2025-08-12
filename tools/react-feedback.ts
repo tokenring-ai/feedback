@@ -35,7 +35,10 @@ export const parameters = z
 	})
 	.strict();
 
-export type ReactFeedbackParams = z.infer<typeof parameters>;
+export interface ReactFeedbackParams {
+    code?: string;
+    file?: string;
+}
 
 export interface ReactFeedbackResultAccepted {
 	status: "accept";
@@ -49,11 +52,13 @@ export type ReactFeedbackResult =
 	| ReactFeedbackResultAccepted
 	| ReactFeedbackResultRejected;
 
-export default execute;
 export async function execute(
 	{ file, code }: ReactFeedbackParams,
 	registry: Registry,
-): Promise<ReactFeedbackResult> {
+): Promise<string|ReactFeedbackResult> {
+    if (! code ) {
+        return "Error: code is required parameter for react-feedback.";
+    }
 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 	if (file == null)
 		file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
@@ -108,7 +113,7 @@ export async function execute(
 		await fileSystem.writeFile(rejectFile, code);
 	}
 
-	await fs.rmdir(tmp, { recursive: true } as any);
+	await fs.rm(tmp, { recursive: true, force: true });
 
 	// 7. Cleanup
 	stop();
