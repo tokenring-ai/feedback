@@ -2,15 +2,15 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import type { Registry } from "@token-ring/registry";
+import type {Registry} from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
-import { FileSystemService } from "@token-ring/filesystem";
+import {FileSystemService} from "@token-ring/filesystem";
 import esbuild from "esbuild";
-import { externalGlobalPlugin } from "esbuild-plugin-external-global";
-import express, { type Request, type Response } from "express";
+import {externalGlobalPlugin} from "esbuild-plugin-external-global";
+import express, {type Request, type Response} from "express";
 import moment from "moment-timezone";
 import open from "open";
-import { z } from "zod";
+import {z} from "zod";
 
 const TMP_PREFIX = "react-preview-";
 

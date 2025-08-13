@@ -1,6 +1,6 @@
-import type { Registry } from "@token-ring/registry";
+import type {Registry} from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
-import { z } from "zod";
+import {z} from "zod";
 
 /**
  * Allows the AI to ask the human a question about the current task.
