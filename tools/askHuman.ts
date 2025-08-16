@@ -1,12 +1,14 @@
 import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
-import {z} from "zod";
+import type { Registry } from "@token-ring/registry";
+import { z } from "zod";
 
 /**
  * Allows the AI to ask the human a question about the current task.
  * @param args Tool arguments: { question: string, choices?: string[], response_type?: "text" | "single" | "multiple" }
  * @param registry - The package registry
  */
+export const name = "feedback/askHuman";
+
 export const description =
   "This tool allows the AI to ask the human a question about the current task and receive their response. It supports textual answers, as well as single-choice and multiple-choice questions when options are provided. Use the 'response_type' parameter ('text', 'single', 'multiple') to specify the expected type of response.";
 
@@ -52,20 +54,18 @@ export type AskHumanResult = AskHumanTextResult | AskHumanChoicesResult;
 
 /**
  * Executes the askHuman tool.
- * Returns either a result object or an error object of shape { error: string }.
+ * Returns a result object. Errors are thrown as exceptions.
  */
 export async function execute(
   args: AskHumanParams,
   registry: Registry,
-): Promise<AskHumanResult | { error: string }> {
-  const {question, choices, response_type: argResponseType} = args;
+): Promise<AskHumanResult> {
+  const { question, choices, response_type: argResponseType } = args;
   const chatService = registry.requireFirstServiceByType(ChatService);
 
   // Validate required question parameter
   if (!question) {
-    const errMsg = "Question is required.";
-    chatService.errorLine(`[askHuman] ${errMsg}`);
-    return {error: errMsg};
+    throw new Error(`[${name}] Question is required.`);
   }
 
   let finalResponseType = argResponseType;
@@ -77,7 +77,7 @@ export async function execute(
     }
 
     // Build the message with a consistent prefix
-    let message = `[askHuman] AI is asking: ${question}\n`;
+    let message = `[${name}] AI is asking: ${question}\n`;
     if (finalResponseType === "multiple") {
       message += "Please select one or more applicable options.\n";
     } else {
@@ -101,7 +101,7 @@ export async function execute(
     if (!finalResponseType) {
       finalResponseType = "text";
     }
-    chatService.systemLine(`[askHuman] AI is asking: ${question}`);
+    chatService.systemLine(`[${name}] AI is asking: ${question}`);
     return {
       status: "question_asked_text",
       question,

@@ -11,6 +11,9 @@ import path from "node:path";
 import open from "open";
 import {z} from "zod";
 
+// Tool name export as required
+export const name = "feedback/getFileFeedback";
+
 const TMP_PREFIX = "file-feedback-";
 
 export const description =
@@ -51,11 +54,11 @@ export async function execute(
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
   const chatService = registry.requireFirstServiceByType(ChatService);
 
+  // Validate required parameters – throw error instead of returning
   if (!filePath || !content) {
-    chatService.errorLine(
-      "Error: filePath and content are required parameters for getFileFeedback."
+    throw new Error(
+      `[${name}] filePath and content are required parameters for getFileFeedback.`,
     );
-    return "Error: filePath and content are required parameters for getFileFeedback.";
   }
 
   // 1. Create a temp workspace
@@ -70,39 +73,34 @@ export async function execute(
   }
 
   // 2. Make index.html for review UI
-  // genFileViewHTML now takes the raw content string
   const indexHtmlContent = genFileViewHTML({
     contentString: content,
     contentType,
-    // Provide the path for the iframe src if it's HTML content
     htmlContentPath:
       contentType === "text/html" ? `./${userContentFileName}` : undefined,
   });
   await fs.writeFile(path.join(tmpDir, "index.html"), indexHtmlContent, "utf8");
 
   // 3. Spin up preview server
-  const {resultPromise, url, stop} = await startFileReviewServer(
-    tmpDir,
-    registry,
-  );
+  const {resultPromise, url, stop} = await startFileReviewServer(tmpDir, registry);
 
   // 4. Launch browser & await user choice
-  // In a real scenario, `open` would be called. For testing, we might skip this.
   if (typeof (open as unknown as Function) === "function") {
     await open(url);
-    chatService.systemLine(`File review UI opened at: ${url}`);
+    chatService.systemLine(`[${name}] File review UI opened at: ${url}`);
   } else {
     chatService.systemLine(
-      `File review UI available at: ${url} (open command mocked/unavailable)`,
+      `[${name}] File review UI available at: ${url} (open command mocked/unavailable)`,
     );
   }
   const result: { accepted: boolean; comment?: string } = await resultPromise;
 
   // 5. If accepted ➜ copy into repo
   if (result.accepted) {
-    // Assuming result has { accepted: boolean, comment?: string }
     await fileSystem.writeFile(filePath, content);
-    chatService.systemLine(`Feedback accepted. Content written to ${filePath}`);
+    chatService.systemLine(
+      `[${name}] Feedback accepted. Content written to ${filePath}`,
+    );
   } else {
     const rejectFile = filePath.replace(
       /(\.[^.]+)$|$/,
@@ -110,7 +108,7 @@ export async function execute(
     );
     await fileSystem.writeFile(rejectFile, content);
     chatService.systemLine(
-      `Feedback rejected. Content written to ${rejectFile}`,
+      `[${name}] Feedback rejected. Content written to ${rejectFile}`,
     );
   }
 
@@ -119,7 +117,7 @@ export async function execute(
     await fs.rm(tmpDir, {recursive: true, force: true});
   } catch (err: any) {
     chatService.errorLine(
-      `Error cleaning up temporary directory ${tmpDir}: ${err.message}`,
+      `[${name}] Error cleaning up temporary directory ${tmpDir}: ${err.message}`,
     );
   }
   stop();
@@ -143,31 +141,27 @@ function escapeHTML(str: string) {
   return str.replace(/[&<>"']/g, (match: string) => map[match as keyof typeof map]);
 }
 
-// genFileViewHTML now takes contentString and htmlContentPath (for text/html iframe)
 function genFileViewHTML({
-                           contentString,
-                           contentType,
-                           htmlContentPath,
-                         }: {
+  contentString,
+  contentType,
+  htmlContentPath,
+}: {
   contentString: string;
   contentType: string;
   htmlContentPath?: string;
 }) {
   let displayContentHtml: string;
-  let effectiveContentType = contentType; // To show in the UI
+  let effectiveContentType = contentType;
 
   if (contentType === "text/markdown" || contentType === "text/x-markdown") {
     const rawMarkup = marked.parse(contentString);
     displayContentHtml = `<div class="markdown-body" style="padding:10px; border:1px solid #ccc; min-height:50vh;">${rawMarkup}</div>`;
-    // Add some basic styling for markdown body if desired, or rely on external CSS.
   } else if (contentType === "text/html") {
-    // iframe will point to a separate file that contains the user's HTML
     displayContentHtml = `<iframe src="${htmlContentPath}" style="width:100%; height:80vh; border:1px solid #ccc;"></iframe>`;
   } else if (contentType === "application/json") {
     displayContentHtml = `<pre style="white-space: pre-wrap; word-wrap: break-word; border:1px solid #ccc; padding:10px; min-height:50vh;">${escapeHTML(contentString)}</pre>`;
   } else {
-    // Default to plain text
-    effectiveContentType = "text/plain"; // Ensure it's explicitly text/plain
+    effectiveContentType = "text/plain";
     displayContentHtml = `<pre style="white-space: pre-wrap; word-wrap: break-word; border:1px solid #ccc; padding:10px; min-height:50vh;">${escapeHTML(contentString)}</pre>`;
   }
 
@@ -176,7 +170,6 @@ function genFileViewHTML({
   <head>
     <meta charset="utf-8"/>
     <title>File Content Review</title>
-    <!-- Basic styling for markdown, can be expanded or replaced with a proper CSS file -->
     <style>
       .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin-top: 1em; margin-bottom: 0.5em; }
       .markdown-body p { margin-bottom: 0.5em; }
@@ -218,7 +211,6 @@ function genFileViewHTML({
            body: JSON.stringify({ accepted: accepted, comment: comment })
          }).then(response => {
             if(response.ok) {
-              // Optionally close window or show message. For now, alert.
               alert("Feedback submitted! You can close this window.");
               document.body.innerHTML = "<h1>Feedback submitted. You can close this window.</h1>";
             } else {
@@ -238,8 +230,8 @@ function genFileViewHTML({
 async function startFileReviewServer(tmpDir: string, registry: Registry) {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const app = express();
-  app.use(express.json()); // Middleware to parse JSON bodies for /result
-  app.use("/", express.static(tmpDir)); // Serve files from tmpDir
+  app.use(express.json());
+  app.use("/", express.static(tmpDir));
 
   let resolveResult: (value: { accepted: boolean; comment?: string }) => void;
   const resultPromise: Promise<{ accepted: boolean; comment?: string }> = new Promise(
@@ -247,33 +239,28 @@ async function startFileReviewServer(tmpDir: string, registry: Registry) {
   );
 
   app.post("/result", (req: Request, res: Response) => {
-    // Body already parsed by express.tson()
-    const {accepted, comment} = req.body as {
-      accepted: boolean;
-      comment?: string;
-    };
+    const {accepted, comment} = req.body as { accepted: boolean; comment?: string };
     res.status(200).send("ok");
     resolveResult({accepted, comment});
     chatService.systemLine(
-      `Feedback received: ${accepted ? "Accepted" : "Rejected"}${
-        comment ? " with comment: " + comment : ""
-      }`,
+      `[${name}] Feedback received: ${accepted ? "Accepted" : "Rejected"}${
+        comment ? " with comment: " + comment : ""}`
     );
   });
 
   const server = http.createServer(app);
-  await new Promise<void>((resolve) => server.listen(0, () => resolve())); // Listen on a random available port
+  await new Promise<void>((resolve) => server.listen(0, () => resolve()));
 
   const address = server.address();
   const port = typeof address === "string" ? 0 : (address?.port ?? 0);
   const url = `http://localhost:${port}/index.html`;
   chatService.systemLine(
-    `File review server running. Please navigate to: ${url}`,
+    `[${name}] File review server running. Please navigate to: ${url}`,
   );
 
   return {
     resultPromise,
     url,
-    stop: () => server.close(() => chatService.systemLine("File review server stopped.")),
+    stop: () => server.close(() => chatService.systemLine(`[${name}] File review server stopped.`)),
   };
 }

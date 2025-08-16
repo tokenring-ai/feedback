@@ -12,6 +12,9 @@ import path from "node:path";
 import open from "open";
 import {z} from "zod";
 
+// Export the tool name in the required "packageName/toolName" format.
+export const name = "feedback/react-feedback";
+
 const TMP_PREFIX = "react-preview-";
 
 /**
@@ -66,7 +69,8 @@ export async function execute(
   registry: Registry,
 ): Promise<string | ReactFeedbackResult | ToolError> {
   if (!code) {
-    return {error: "code is required parameter for react-feedback."};
+    // Throw an error instead of returning an error object.
+    throw new Error(`[${name}] code is required parameter for react-feedback.`);
   }
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
   if (file == null)
@@ -209,7 +213,7 @@ async function startServer(tmpDir: string, registry: Registry) {
   const url = `http://localhost:${port}/index.html`;
 
   // Prefix informational messages with the tool name as required.
-  chatService.systemLine(`[react-feedback] Preview running on ${url}`);
+  chatService.systemLine(`[${name}] Preview running on ${url}`);
   return {
     resultPromise,
     url,
