@@ -1,14 +1,14 @@
-import fs from "node:fs/promises";
-import http from "node:http";
-import os from "node:os";
-import path from "node:path";
-import type {Registry} from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
 import {FileSystemService} from "@token-ring/filesystem";
+import type {Registry} from "@token-ring/registry";
 import esbuild from "esbuild";
 import {externalGlobalPlugin} from "esbuild-plugin-external-global";
 import express, {type Request, type Response} from "express";
 import moment from "moment-timezone";
+import fs from "node:fs/promises";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
 import open from "open";
 import {z} from "zod";
 
@@ -20,116 +20,118 @@ const TMP_PREFIX = "react-preview-";
  * @param registry - The package registry
  */
 export const description =
-	"This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
+  "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
 export const parameters = z
-	.object({
-		code: z
-			.string()
-			.describe(
-				"The complete source code of the React component to be previewed. This should be valid JSX/TSX that can be bundled and rendered in the browser.",
-			),
-		file: z
-			.string()
-			.optional()
-			.describe("The filename/path of the React component to be previewed"),
-	})
-	.strict();
+  .object({
+    code: z
+      .string()
+      .describe(
+        "The complete source code of the React component to be previewed. This should be valid JSX/TSX that can be bundled and rendered in the browser.",
+      ),
+    file: z
+      .string()
+      .optional()
+      .describe("The filename/path of the React component to be previewed"),
+  })
+  .strict();
 
 export interface ReactFeedbackParams {
-    code?: string;
-    file?: string;
+  code?: string;
+  file?: string;
 }
 
 export interface ReactFeedbackResultAccepted {
-	status: "accept";
-	comment?: string;
+  status: "accept";
+  comment?: string;
 }
+
 export interface ReactFeedbackResultRejected {
-	status: "reject" | "rejected";
-	comment?: string;
+  status: "reject" | "rejected";
+  comment?: string;
 }
+
 export type ReactFeedbackResult =
-	| ReactFeedbackResultAccepted
-	| ReactFeedbackResultRejected;
+  | ReactFeedbackResultAccepted
+  | ReactFeedbackResultRejected;
 
 /**
  * Standard error shape for tool execution failures.
  */
 export interface ToolError {
-    error: string;
+  error: string;
 }
 
 export async function execute(
-    { file, code }: ReactFeedbackParams,
-    registry: Registry,
+  {file, code}: ReactFeedbackParams,
+  registry: Registry,
 ): Promise<string | ReactFeedbackResult | ToolError> {
-    if (!code) {
-        return { error: "code is required parameter for react-feedback." };
-    }
- 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
- 	if (file == null)
- 		file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
+  if (!code) {
+    return {error: "code is required parameter for react-feedback."};
+  }
+  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  if (file == null)
+    file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
-	// 1. Create a temp workspace
-	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
-	const jsxPath = path.join(tmp, file);
-	await fs.writeFile(jsxPath, code, "utf8");
+  // 1. Create a temp workspace
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
+  const jsxPath = path.join(tmp, file);
+  await fs.writeFile(jsxPath, code, "utf8");
 
-	// 2. Bundle with esbuild
-	const bundlePath = path.join(tmp, "bundle.ts");
-	// Normalize plugins typing to the esbuild Plugin[] expected by our local esbuild
-	const plugins: esbuild.Plugin[] = [
-		(externalGlobalPlugin({
-			react: "window.React",
-			"react-dom": "window.ReactDOM",
-			"react/jsx-runtime": "window.JSX",
-			jQuery: "$",
-		}) as unknown) as esbuild.Plugin,
-	];
+  // 2. Bundle with esbuild
+  const bundlePath = path.join(tmp, "bundle.ts");
+  // Normalize plugins typing to the esbuild Plugin[] expected by our local esbuild
+  const plugins: esbuild.Plugin[] = [
+    (externalGlobalPlugin({
+      react: "window.React",
+      "react-dom": "window.ReactDOM",
+      "react/jsx-runtime": "window.JSX",
+      jQuery: "$",
+    }) as unknown) as esbuild.Plugin,
+  ];
 
-	await esbuild.build({
-		entryPoints: [jsxPath],
-		outfile: bundlePath,
-		bundle: true,
-		jsx: "automatic",
-		platform: "browser",
-		external: ["react", "react-dom", "react/jsx-runtime"],
-		globalName: "window.App",
-		plugins,
-	});
+  await esbuild.build({
+    entryPoints: [jsxPath],
+    outfile: bundlePath,
+    bundle: true,
+    jsx: "automatic",
+    platform: "browser",
+    external: ["react", "react-dom", "react/jsx-runtime"],
+    globalName: "window.App",
+    plugins,
+  });
 
-	// 3. Make index.html
-	const html = genHTML({ bundlePath: "./bundle.ts" });
-	await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
+  // 3. Make index.html
+  const html = genHTML({bundlePath: "./bundle.ts"});
+  await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
 
-	// 4. Spin up preview server
- 	const { resultPromise, url, stop } = await startServer(tmp, registry);
+  // 4. Spin up preview server
+  const {resultPromise, url, stop} = await startServer(tmp, registry);
 
-	// 5. Launch browser & await user choice
-	await open(url);
-	const result = await resultPromise;
+  // 5. Launch browser & await user choice
+  await open(url);
+  const result = await resultPromise;
 
-	// 6. If accepted ➜ copy into repo
-	if (result.status === "accept") {
-		await fileSystem.writeFile(file, code);
-	} else {
-		const rejectFile = file.replace(
-			/\./,
-			`.rejected${moment().format("YYYYMMDD-HH:mm")}.`,
-		);
-		await fileSystem.writeFile(rejectFile, code);
-	}
+  // 6. If accepted ➜ copy into repo
+  if (result.status === "accept") {
+    await fileSystem.writeFile(file, code);
+  } else {
+    const rejectFile = file.replace(
+      /\./,
+      `.rejected${moment().format("YYYYMMDD-HH:mm")}.`,
+    );
+    await fileSystem.writeFile(rejectFile, code);
+  }
 
- 	await fs.rm(tmp, { recursive: true, force: true });
+  await fs.rm(tmp, {recursive: true, force: true});
 
-	// 7. Cleanup
-	stop();
+  // 7. Cleanup
+  stop();
 
- 	return result as ReactFeedbackResult;
- }
+  return result as ReactFeedbackResult;
+}
 
-function genHTML({ bundlePath }: { bundlePath: string }) {
-	return `<!doctype html>
+function genHTML({bundlePath}: { bundlePath: string }) {
+  return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8"/>
@@ -183,34 +185,34 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
 </html>`;
 }
 
- async function startServer(tmpDir: string, registry: Registry) {
- 	const chatService = registry.requireFirstServiceByType(ChatService);
+async function startServer(tmpDir: string, registry: Registry) {
+  const chatService = registry.requireFirstServiceByType(ChatService);
 
-	const app = express();
-	app.use("/", express.static(tmpDir));
-	let resolveResult: (value: ReactFeedbackResult) => void;
-	const resultPromise: Promise<ReactFeedbackResult> = new Promise(
-		(r) => (resolveResult = r),
-	);
-	app.post("/result", (req: Request, res: Response) => {
-		let buf = "";
-		req.on("data", (c: Buffer) => (buf += c.toString()));
-		req.on("end", () => {
-			res.end("ok");
-			resolveResult(JSON.parse(buf));
-		});
-	});
-	const server = http.createServer(app);
-	await new Promise<void>((resolve) => server.listen(0, () => resolve(undefined)));
-	const addr = server.address();
-	const port = typeof addr === "object" && addr && "port" in addr ? (addr.port as number) : 0;
- 	const url = `http://localhost:${port}/index.html`;
+  const app = express();
+  app.use("/", express.static(tmpDir));
+  let resolveResult: (value: ReactFeedbackResult) => void;
+  const resultPromise: Promise<ReactFeedbackResult> = new Promise(
+    (r) => (resolveResult = r),
+  );
+  app.post("/result", (req: Request, res: Response) => {
+    let buf = "";
+    req.on("data", (c: Buffer) => (buf += c.toString()));
+    req.on("end", () => {
+      res.end("ok");
+      resolveResult(JSON.parse(buf));
+    });
+  });
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, () => resolve(undefined)));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr && "port" in addr ? (addr.port as number) : 0;
+  const url = `http://localhost:${port}/index.html`;
 
-	// Prefix informational messages with the tool name as required.
-	chatService.systemLine(`[react-feedback] Preview running on ${url}`);
- 	return {
- 		resultPromise,
- 		url,
- 		stop: () => server.close(),
- 	};
- }
+  // Prefix informational messages with the tool name as required.
+  chatService.systemLine(`[react-feedback] Preview running on ${url}`);
+  return {
+    resultPromise,
+    url,
+    stop: () => server.close(),
+  };
+}

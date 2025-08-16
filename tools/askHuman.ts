@@ -1,6 +1,6 @@
-import type { Registry } from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
-import { z } from "zod";
+import type {Registry} from "@token-ring/registry";
+import {z} from "zod";
 
 /**
  * Allows the AI to ask the human a question about the current task.
@@ -8,44 +8,44 @@ import { z } from "zod";
  * @param registry - The package registry
  */
 export const description =
-	"This tool allows the AI to ask the human a question about the current task and receive their response. It supports textual answers, as well as single-choice and multiple-choice questions when options are provided. Use the 'response_type' parameter ('text', 'single', 'multiple') to specify the expected type of response.";
+  "This tool allows the AI to ask the human a question about the current task and receive their response. It supports textual answers, as well as single-choice and multiple-choice questions when options are provided. Use the 'response_type' parameter ('text', 'single', 'multiple') to specify the expected type of response.";
 
 export const parameters = z.object({
-	question: z.string().describe("The question to ask the human."),
-	choices: z
-		.array(z.string())
-		.describe(
-			"A list of choices for the human to select from. Required if response_type is 'single' or 'multiple'.",
-		)
-		.optional(),
-	response_type: z
-		.enum(["text", "single", "multiple"]) // removed stray backslash
-		.describe(
-			"Specifies the expected type of response. Defaults to 'text' if choices are absent, and 'single' if choices are present.",
-		)
-		.optional(),
+  question: z.string().describe("The question to ask the human."),
+  choices: z
+    .array(z.string())
+    .describe(
+      "A list of choices for the human to select from. Required if response_type is 'single' or 'multiple'.",
+    )
+    .optional(),
+  response_type: z
+    .enum(["text", "single", "multiple"]) // removed stray backslash
+    .describe(
+      "Specifies the expected type of response. Defaults to 'text' if choices are absent, and 'single' if choices are present.",
+    )
+    .optional(),
 });
 
 interface AskHumanParams {
-    question?: string;
-    choices?: string[];
-    response_type?: "text" | "single" | "multiple";
+  question?: string;
+  choices?: string[];
+  response_type?: "text" | "single" | "multiple";
 }
 
 interface AskHumanBase {
-	question: string;
-	response_type: "text" | "single" | "multiple";
-	timestamp: string;
-	message: string;
+  question: string;
+  response_type: "text" | "single" | "multiple";
+  timestamp: string;
+  message: string;
 }
 
 export interface AskHumanTextResult extends AskHumanBase {
-	status: "question_asked_text";
+  status: "question_asked_text";
 }
 
 export interface AskHumanChoicesResult extends AskHumanBase {
-	status: "question_asked_choices";
-	choices: string[];
+  status: "question_asked_choices";
+  choices: string[];
 }
 
 export type AskHumanResult = AskHumanTextResult | AskHumanChoicesResult;
@@ -55,59 +55,59 @@ export type AskHumanResult = AskHumanTextResult | AskHumanChoicesResult;
  * Returns either a result object or an error object of shape { error: string }.
  */
 export async function execute(
-	args: AskHumanParams,
-	registry: Registry,
+  args: AskHumanParams,
+  registry: Registry,
 ): Promise<AskHumanResult | { error: string }> {
-	const { question, choices, response_type: argResponseType } = args;
-	const chatService = registry.requireFirstServiceByType(ChatService);
+  const {question, choices, response_type: argResponseType} = args;
+  const chatService = registry.requireFirstServiceByType(ChatService);
 
-    // Validate required question parameter
-    if (!question) {
-        const errMsg = "Question is required.";
-        chatService.errorLine(`[askHuman] ${errMsg}`);
-        return { error: errMsg };
+  // Validate required question parameter
+  if (!question) {
+    const errMsg = "Question is required.";
+    chatService.errorLine(`[askHuman] ${errMsg}`);
+    return {error: errMsg};
+  }
+
+  let finalResponseType = argResponseType;
+
+  if (choices && choices.length > 0) {
+    // If choices are provided and no explicit response_type, default to "single"
+    if (!finalResponseType) {
+      finalResponseType = "single";
     }
 
-    let finalResponseType = argResponseType;
-
-    if (choices && choices.length > 0) {
-        // If choices are provided and no explicit response_type, default to "single"
-        if (!finalResponseType) {
-            finalResponseType = "single";
-        }
-
-        // Build the message with a consistent prefix
-        let message = `[askHuman] AI is asking: ${question}\n`;
-        if (finalResponseType === "multiple") {
-            message += "Please select one or more applicable options.\n";
-        } else {
-            message += "Please select one of the following options:\n";
-        }
-        choices.forEach((choice, index) => {
-            message += `${index + 1}. ${choice}\n`;
-        });
-        chatService.systemLine(message);
-
-        return {
-            status: "question_asked_choices",
-            question,
-            choices,
-            response_type: finalResponseType,
-            timestamp: new Date().toISOString(),
-            message: `The question with choices has been asked to the human. Respond in the chat according to the options and type (${finalResponseType}).`,
-        };
+    // Build the message with a consistent prefix
+    let message = `[askHuman] AI is asking: ${question}\n`;
+    if (finalResponseType === "multiple") {
+      message += "Please select one or more applicable options.\n";
     } else {
-        // No choices provided
-        if (!finalResponseType) {
-            finalResponseType = "text";
-        }
-        chatService.systemLine(`[askHuman] AI is asking: ${question}`);
-        return {
-            status: "question_asked_text",
-            question,
-            response_type: finalResponseType,
-            timestamp: new Date().toISOString(),
-            message: "The question has been asked to the human. Please provide your textual response in the chat.",
-        };
+      message += "Please select one of the following options:\n";
     }
+    choices.forEach((choice, index) => {
+      message += `${index + 1}. ${choice}\n`;
+    });
+    chatService.systemLine(message);
+
+    return {
+      status: "question_asked_choices",
+      question,
+      choices,
+      response_type: finalResponseType,
+      timestamp: new Date().toISOString(),
+      message: `The question with choices has been asked to the human. Respond in the chat according to the options and type (${finalResponseType}).`,
+    };
+  } else {
+    // No choices provided
+    if (!finalResponseType) {
+      finalResponseType = "text";
+    }
+    chatService.systemLine(`[askHuman] AI is asking: ${question}`);
+    return {
+      status: "question_asked_text",
+      question,
+      response_type: finalResponseType,
+      timestamp: new Date().toISOString(),
+      message: "The question has been asked to the human. Please provide your textual response in the chat.",
+    };
+  }
 }
