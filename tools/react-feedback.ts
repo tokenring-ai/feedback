@@ -52,16 +52,23 @@ export type ReactFeedbackResult =
 	| ReactFeedbackResultAccepted
 	| ReactFeedbackResultRejected;
 
+/**
+ * Standard error shape for tool execution failures.
+ */
+export interface ToolError {
+    error: string;
+}
+
 export async function execute(
-	{ file, code }: ReactFeedbackParams,
-	registry: Registry,
-): Promise<string|ReactFeedbackResult> {
-    if (! code ) {
-        return "Error: code is required parameter for react-feedback.";
+    { file, code }: ReactFeedbackParams,
+    registry: Registry,
+): Promise<string | ReactFeedbackResult | ToolError> {
+    if (!code) {
+        return { error: "code is required parameter for react-feedback." };
     }
-	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
-	if (file == null)
-		file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
+ 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+ 	if (file == null)
+ 		file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
 	// 1. Create a temp workspace
 	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
@@ -96,7 +103,7 @@ export async function execute(
 	await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
 
 	// 4. Spin up preview server
-	const { resultPromise, url, stop } = await startServer(tmp, registry);
+ 	const { resultPromise, url, stop } = await startServer(tmp, registry);
 
 	// 5. Launch browser & await user choice
 	await open(url);
@@ -113,13 +120,13 @@ export async function execute(
 		await fileSystem.writeFile(rejectFile, code);
 	}
 
-	await fs.rm(tmp, { recursive: true, force: true });
+ 	await fs.rm(tmp, { recursive: true, force: true });
 
 	// 7. Cleanup
 	stop();
 
-	return result as ReactFeedbackResult;
-}
+ 	return result as ReactFeedbackResult;
+ }
 
 function genHTML({ bundlePath }: { bundlePath: string }) {
 	return `<!doctype html>
@@ -176,8 +183,8 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
 </html>`;
 }
 
-async function startServer(tmpDir: string, registry: Registry) {
-	const chatService = registry.requireFirstServiceByType(ChatService);
+ async function startServer(tmpDir: string, registry: Registry) {
+ 	const chatService = registry.requireFirstServiceByType(ChatService);
 
 	const app = express();
 	app.use("/", express.static(tmpDir));
@@ -197,11 +204,13 @@ async function startServer(tmpDir: string, registry: Registry) {
 	await new Promise<void>((resolve) => server.listen(0, () => resolve(undefined)));
 	const addr = server.address();
 	const port = typeof addr === "object" && addr && "port" in addr ? (addr.port as number) : 0;
-	const url = `http://localhost:${port}/index.html`;
-	chatService.systemLine(`Preview running on ${url}`);
-	return {
-		resultPromise,
-		url,
-		stop: () => server.close(),
-	};
-}
+ 	const url = `http://localhost:${port}/index.html`;
+
+	// Prefix informational messages with the tool name as required.
+	chatService.systemLine(`[react-feedback] Preview running on ${url}`);
+ 	return {
+ 		resultPromise,
+ 		url,
+ 		stop: () => server.close(),
+ 	};
+ }
