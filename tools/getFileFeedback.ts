@@ -115,9 +115,9 @@ export async function execute(
   // 6. Cleanup
   try {
     await fs.rm(tmpDir, {recursive: true, force: true});
-  } catch (err: any) {
+  } catch (err: unknown) {
     chatService.errorLine(
-      `[${name}] Error cleaning up temporary directory ${tmpDir}: ${err.message}`,
+      `[${name}] Error cleaning up temporary directory ${tmpDir}`, err
     );
   }
   stop();
