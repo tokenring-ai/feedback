@@ -19,7 +19,7 @@ const TMP_PREFIX = "file-feedback-";
 export const description =
   "This tool allows you to present the content of a file to the user, solicit feedback (accept/reject with comments), and optionally write the content to a specified file path if accepted. If the `contentType` is `text/markdown` or `text/x-markdown`, the content will be rendered as HTML for review.";
 
-export const parameters = z
+export const inputSchema = z
   .object({
     filePath: z
       .string()
@@ -142,10 +142,10 @@ function escapeHTML(str: string) {
 }
 
 function genFileViewHTML({
-  contentString,
-  contentType,
-  htmlContentPath,
-}: {
+                           contentString,
+                           contentType,
+                           htmlContentPath,
+                         }: {
   contentString: string;
   contentType: string;
   htmlContentPath?: string;

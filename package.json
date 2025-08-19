@@ -1,35 +1,32 @@
 {
-	"name": "@token-ring/feedback",
-	"version": "0.1.0",
+ "name": "@token-ring/feedback",
+ "version": "0.1.0",
  "description": "Feedback package for Token Ring",
-	"dependencies": {
-		"@token-ring/chat": "0.1.0",
-
-		"@token-ring/filesystem": "0.1.0",
-		"@token-ring/registry": "0.1.0",
-		"esbuild": "^0.25.9",
-		"esbuild-plugin-external-global": "^1.0.1",
-		"express": "^5.1.0",
-		"marked": "^16.1.2",
-		"moment-timezone": "^0.6.0",
-		"open": "^10.2.0",
-		"react": "^19.1.1",
-		"react-dom": "^19.1.1"
-	},
-	"devDependencies": {
-		"typescript": "^5.9.2",
+ "dependencies": {
+  "@token-ring/chat": "0.1.0",
+  "@token-ring/filesystem": "0.1.0",
+  "@token-ring/registry": "0.1.0",
+  "esbuild": "^0.25.9",
+  "esbuild-plugin-external-global": "^1.0.1",
+  "express": "^5.1.0",
+  "marked": "^16.1.2",
+  "moment-timezone": "^0.6.0",
+  "open": "^10.2.0",
+  "react": "^19.1.1",
+  "react-dom": "^19.1.1"
+ },
+ "devDependencies": {
+  "typescript": "^5.9.2",
   "@types/express": "^5.0.3"
-	},
-	"exports": {
-		".": "./index.ts",
-		"./*": "./*.ts"
-	},
-	"types": "./index.ts",
-	"license": "MIT",
-	"scripts": {
-
-		"build": "tsc -p tsconfig.tson"
-
-	},
-	"type": "module"
+ },
+ "exports": {
+  ".": "./index.ts",
+  "./*": "./*.ts"
+ },
+ "types": "./index.ts",
+ "license": "MIT",
+ "scripts": {
+  "build": "tsc -p tsconfig.tson"
+ },
+ "type": "module"
 }

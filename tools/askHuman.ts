@@ -1,18 +1,16 @@
 import ChatService from "@token-ring/chat/ChatService";
-import type { Registry } from "@token-ring/registry";
-import { z } from "zod";
+import type {Registry} from "@token-ring/registry";
+import {z} from "zod";
 
 /**
  * Allows the AI to ask the human a question about the current task.
- * @param args Tool arguments: { question: string, choices?: string[], response_type?: "text" | "single" | "multiple" }
- * @param registry - The package registry
  */
 export const name = "feedback/askHuman";
 
 export const description =
   "This tool allows the AI to ask the human a question about the current task and receive their response. It supports textual answers, as well as single-choice and multiple-choice questions when options are provided. Use the 'response_type' parameter ('text', 'single', 'multiple') to specify the expected type of response.";
 
-export const parameters = z.object({
+export const inputSchema = z.object({
   question: z.string().describe("The question to ask the human."),
   choices: z
     .array(z.string())
@@ -60,7 +58,7 @@ export async function execute(
   args: AskHumanParams,
   registry: Registry,
 ): Promise<AskHumanResult> {
-  const { question, choices, response_type: argResponseType } = args;
+  const {question, choices, response_type: argResponseType} = args;
   const chatService = registry.requireFirstServiceByType(ChatService);
 
   // Validate required question parameter

@@ -19,12 +19,10 @@ const TMP_PREFIX = "react-preview-";
 
 /**
  * Render & review a React component in the browser.
- * @param args Tool arguments: { file: string, code: string, exampleProps: object }
- * @param registry - The package registry
  */
 export const description =
   "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
-export const parameters = z
+export const inputSchema = z
   .object({
     code: z
       .string()
