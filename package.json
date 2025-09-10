@@ -1,11 +1,10 @@
 {
- "name": "@token-ring/feedback",
+ "name": "@tokenring-ai/feedback",
  "version": "0.1.0",
  "description": "Feedback package for Token Ring",
  "dependencies": {
-  "@token-ring/chat": "0.1.0",
-  "@token-ring/filesystem": "0.1.0",
-  "@token-ring/registry": "0.1.0",
+  "@tokenring-ai/agent": "0.1.0",
+  "@tokenring-ai/filesystem": "0.1.0",
   "esbuild": "^0.25.9",
   "esbuild-plugin-external-global": "^1.0.1",
   "express": "^5.1.0",

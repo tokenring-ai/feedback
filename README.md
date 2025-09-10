@@ -1,8 +1,8 @@
-@token-ring/feedback
+@tokenring-ai/feedback
 
 Overview
 
-- @token-ring/feedback provides human-in-the-loop feedback utilities for the Token Ring ecosystem. It exposes tools to:
+- @tokenring-ai/feedback provides human-in-the-loop feedback utilities for the Token Ring ecosystem. It exposes tools to:
 - Ask a human clarifying questions (text or choice-based) and record their response context.
 - Present file/content for review in the browser (rendering markdown/HTML/JSON/text) and capture Accept/Reject with
   optional comment, writing accepted content into the repository.
@@ -30,11 +30,11 @@ Installation
 This package is part of the monorepo and is typically consumed by the Token Ring runtime. If you need to depend on it
 directly:
 
-- Add dependency: "@token-ring/feedback": "0.1.0"
+- Add dependency: "@tokenring-ai/feedback": "0.1.0"
 - Ensure peer packages are available in your workspace and registered in your ServiceRegistry where appropriate:
-- @token-ring/registry
-- @token-ring/chat
-- @token-ring/filesystem
+- @tokenring-ai/registry
+- @tokenring-ai/chat
+- @tokenring-ai/filesystem
 - Additional runtime deps used internally by certain tools:
 - express, open (browser launching), marked (markdown rendering), moment-timezone, esbuild (React preview bundling),
   esbuild-plugin-external-global
@@ -75,9 +75,9 @@ Tool: askHuman
 
 Usage (askHuman)
 
-import { ServiceRegistry } from "@token-ring/registry";
-import ChatService from "@token-ring/chat/ChatService";
-import * as askHuman from "@token-ring/feedback/tools/askHuman";
+import { ServiceRegistry } from "@tokenring-ai/registry";
+import ChatService from "@tokenring-ai/chat/ChatService";
+import * as askHuman from "@tokenring-ai/feedback/tools/askHuman";
 
 const registry = new ServiceRegistry();
 registry.registerService(new ChatService());
@@ -123,10 +123,10 @@ Tool: getFileFeedback
 
 Usage (getFileFeedback)
 
-import { ServiceRegistry } from "@token-ring/registry";
-import ChatService from "@token-ring/chat/ChatService";
-import { FileSystemService } from "@token-ring/filesystem";
-import * as getFileFeedback from "@token-ring/feedback/tools/getFileFeedback";
+import { ServiceRegistry } from "@tokenring-ai/registry";
+import ChatService from "@tokenring-ai/chat/ChatService";
+import { FileSystemService } from "@tokenring-ai/filesystem";
+import * as getFileFeedback from "@tokenring-ai/feedback/tools/getFileFeedback";
 
 const registry = new ServiceRegistry();
 registry.registerService(new ChatService());
@@ -162,10 +162,10 @@ Tool: reactFeedback
 
 Usage (reactFeedback)
 
-import { ServiceRegistry } from "@token-ring/registry";
-import ChatService from "@token-ring/chat/ChatService";
-import { FileSystemService } from "@token-ring/filesystem";
-import * as reactFeedback from "@token-ring/feedback/tools/react-feedback";
+import { ServiceRegistry } from "@tokenring-ai/registry";
+import ChatService from "@tokenring-ai/chat/ChatService";
+import { FileSystemService } from "@tokenring-ai/filesystem";
+import * as reactFeedback from "@tokenring-ai/feedback/tools/react-feedback";
 
 const registry = new ServiceRegistry();
 registry.registerService(new ChatService());

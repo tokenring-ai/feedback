@@ -1,6 +1,5 @@
-import ChatService from "@token-ring/chat/ChatService";
-import {FileSystemService} from "@token-ring/filesystem";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
+import {FileSystemService} from "@tokenring-ai/filesystem";
 import express, {type Request, type Response} from "express";
 import {marked} from "marked";
 import moment from "moment-timezone";
@@ -49,10 +48,9 @@ export interface GetFileFeedbackResult {
 
 export async function execute(
   {filePath, content, contentType = "text/plain"}: GetFileFeedbackParams,
-  registry: Registry,
+  agent: Agent,
 ): Promise<string | GetFileFeedbackResult> {
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
-  const chatService = registry.requireFirstServiceByType(ChatService);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
   // Validate required parameters – throw error instead of returning
   if (!filePath || !content) {
@@ -82,14 +80,14 @@ export async function execute(
   await fs.writeFile(path.join(tmpDir, "index.html"), indexHtmlContent, "utf8");
 
   // 3. Spin up preview server
-  const {resultPromise, url, stop} = await startFileReviewServer(tmpDir, registry);
+  const {resultPromise, url, stop} = await startFileReviewServer(tmpDir, agent);
 
   // 4. Launch browser & await user choice
   if (typeof (open as unknown as Function) === "function") {
     await open(url);
-    chatService.systemLine(`[${name}] File review UI opened at: ${url}`);
+    agent.infoLine(`[${name}] File review UI opened at: ${url}`);
   } else {
-    chatService.systemLine(
+    agent.infoLine(
       `[${name}] File review UI available at: ${url} (open command mocked/unavailable)`,
     );
   }
@@ -98,7 +96,7 @@ export async function execute(
   // 5. If accepted ➜ copy into repo
   if (result.accepted) {
     await fileSystem.writeFile(filePath, content);
-    chatService.systemLine(
+    agent.infoLine(
       `[${name}] Feedback accepted. Content written to ${filePath}`,
     );
   } else {
@@ -107,7 +105,7 @@ export async function execute(
       `.rejected${moment().format("YYYYMMDD-HHmmss")}$1`,
     );
     await fileSystem.writeFile(rejectFile, content);
-    chatService.systemLine(
+    agent.infoLine(
       `[${name}] Feedback rejected. Content written to ${rejectFile}`,
     );
   }
@@ -116,8 +114,8 @@ export async function execute(
   try {
     await fs.rm(tmpDir, {recursive: true, force: true});
   } catch (err: unknown) {
-    chatService.errorLine(
-      `[${name}] Error cleaning up temporary directory ${tmpDir}`, err
+    agent.errorLine(
+      `[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error,
     );
   }
   stop();
@@ -227,8 +225,7 @@ function genFileViewHTML({
 </html>`;
 }
 
-async function startFileReviewServer(tmpDir: string, registry: Registry) {
-  const chatService = registry.requireFirstServiceByType(ChatService);
+async function startFileReviewServer(tmpDir: string, agent: Agent) {
   const app = express();
   app.use(express.json());
   app.use("/", express.static(tmpDir));
@@ -242,7 +239,7 @@ async function startFileReviewServer(tmpDir: string, registry: Registry) {
     const {accepted, comment} = req.body as { accepted: boolean; comment?: string };
     res.status(200).send("ok");
     resolveResult({accepted, comment});
-    chatService.systemLine(
+    agent.infoLine(
       `[${name}] Feedback received: ${accepted ? "Accepted" : "Rejected"}${
         comment ? " with comment: " + comment : ""}`
     );
@@ -254,13 +251,13 @@ async function startFileReviewServer(tmpDir: string, registry: Registry) {
   const address = server.address();
   const port = typeof address === "string" ? 0 : (address?.port ?? 0);
   const url = `http://localhost:${port}/index.html`;
-  chatService.systemLine(
+  agent.infoLine(
     `[${name}] File review server running. Please navigate to: ${url}`,
   );
 
   return {
     resultPromise,
     url,
-    stop: () => server.close(() => chatService.systemLine(`[${name}] File review server stopped.`)),
+    stop: () => server.close(() => agent.infoLine(`[${name}] File review server stopped.`)),
   };
 }

@@ -1,5 +1,4 @@
-import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
 import {z} from "zod";
 
 /**
@@ -56,10 +55,9 @@ export type AskHumanResult = AskHumanTextResult | AskHumanChoicesResult;
  */
 export async function execute(
   args: AskHumanParams,
-  registry: Registry,
+  agent: Agent,
 ): Promise<AskHumanResult> {
   const {question, choices, response_type: argResponseType} = args;
-  const chatService = registry.requireFirstServiceByType(ChatService);
 
   // Validate required question parameter
   if (!question) {
@@ -84,7 +82,7 @@ export async function execute(
     choices.forEach((choice, index) => {
       message += `${index + 1}. ${choice}\n`;
     });
-    chatService.systemLine(message);
+    agent.infoLine(message);
 
     return {
       status: "question_asked_choices",
@@ -99,7 +97,7 @@ export async function execute(
     if (!finalResponseType) {
       finalResponseType = "text";
     }
-    chatService.systemLine(`[${name}] AI is asking: ${question}`);
+    agent.infoLine(`[${name}] AI is asking: ${question}`);
     return {
       status: "question_asked_text",
       question,

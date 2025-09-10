@@ -1,6 +1,5 @@
-import ChatService from "@token-ring/chat/ChatService";
-import {FileSystemService} from "@token-ring/filesystem";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
+import {FileSystemService} from "@tokenring-ai/filesystem";
 import esbuild from "esbuild";
 import {externalGlobalPlugin} from "esbuild-plugin-external-global";
 import express, {type Request, type Response} from "express";
@@ -64,13 +63,13 @@ export interface ToolError {
 
 export async function execute(
   {file, code}: ReactFeedbackParams,
-  registry: Registry,
+  agent: Agent,
 ): Promise<string | ReactFeedbackResult | ToolError> {
   if (!code) {
     // Throw an error instead of returning an error object.
     throw new Error(`[${name}] code is required parameter for react-feedback.`);
   }
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
   if (file == null)
     file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
@@ -107,7 +106,7 @@ export async function execute(
   await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
 
   // 4. Spin up preview server
-  const {resultPromise, url, stop} = await startServer(tmp, registry);
+  const {resultPromise, url, stop} = await startServer(tmp, agent);
 
   // 5. Launch browser & await user choice
   await open(url);
@@ -139,10 +138,10 @@ function genHTML({bundlePath}: { bundlePath: string }) {
     <meta charset="utf-8"/>
     <style>
       body{margin-top: 6lh;font-family:sans-serif}
-      #overlay{position:fixed;top:0;left:0;right:0;display:flex;gap:8px;padding:8px;background:#eee;z-index:999}
-      #overlay button{padding:6px 12px;border:0;border-radius:4px;cursor:pointer}
-      #commentBox{width:100%; min-height: 5lh; padding:6px;margin-top:8px}
-      #commentSubmit{background:#ffd37b;margin-top:8px}
+      #overlay{fixed;0;0;0;flex;8px;8px;#eee;z-index:999}
+      #overlay button{6px 12px;0;border-radius:4px;pointer}
+      #commentBox{100%; min-height: 5lh; 6px;margin-top:8px}
+      #commentSubmit{#ffd37b;margin-top:8px}
     </style>
   </head>
   <body>
@@ -187,8 +186,7 @@ function genHTML({bundlePath}: { bundlePath: string }) {
 </html>`;
 }
 
-async function startServer(tmpDir: string, registry: Registry) {
-  const chatService = registry.requireFirstServiceByType(ChatService);
+async function startServer(tmpDir: string, agent: Agent) {
 
   const app = express();
   app.use("/", express.static(tmpDir));
@@ -211,7 +209,7 @@ async function startServer(tmpDir: string, registry: Registry) {
   const url = `http://localhost:${port}/index.html`;
 
   // Prefix informational messages with the tool name as required.
-  chatService.systemLine(`[${name}] Preview running on ${url}`);
+  agent.infoLine(`[${name}] Preview running on ${url}`);
   return {
     resultPromise,
     url,
