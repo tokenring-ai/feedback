@@ -205,7 +205,7 @@ async function startServer(tmpDir: string, agent: Agent) {
   const server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, () => resolve(undefined)));
   const addr = server.address();
-  const port = typeof addr === "object" && addr && "port" in addr ? (addr.port as number) : 0;
+  const port = typeof addr === "object" && addr && "port" in addr ? addr.port : 0;
   const url = `http://localhost:${port}/index.html`;
 
   // Prefix informational messages with the tool name as required.
