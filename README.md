@@ -1,188 +1,214 @@
-@tokenring-ai/feedback
+# Feedback Package Documentation
 
-Overview
+## Overview
 
-- @tokenring-ai/feedback provides human-in-the-loop feedback utilities for the Token Ring ecosystem. It exposes tools to:
-- Ask a human clarifying questions (text or choice-based) and record their response context.
-- Present file/content for review in the browser (rendering markdown/HTML/JSON/text) and capture Accept/Reject with
-  optional comment, writing accepted content into the repository.
-- Preview a React component in the browser and capture Accept/Reject with optional comment, writing the accepted code
-  to disk.
+The `@tokenring-ai/feedback` package is part of the Token Ring AI framework. It provides a set of tools that enable AI agents to solicit and collect feedback from human users during task execution. This is crucial for iterative development, validation, and human-in-the-loop interactions in AI-driven workflows.
 
-What this package offers
+Key functionalities include:
+- Asking humans open-ended questions or presenting multiple-choice options.
+- Displaying file contents (text, Markdown, HTML, JSON) for review and approval/rejection with comments.
+- Rendering React components in a browser for visual feedback and acceptance.
 
-- Tools namespace (see Exports below)
-- tools.askHuman
-- tools.getFileFeedback
-- tools.reactFeedback
+These tools integrate with the `@tokenring-ai/agent` ecosystem, allowing agents to pause execution, interact with users via browser-based UIs or chat, and incorporate responses into their decision-making process. The package emphasizes safe, temporary file handling and automatic cleanup.
 
-Exports
+## Installation/Setup
 
-- index.ts
-- name, version, description (from package.json)
-- tools (namespace) re-export
-- tools.ts
-- askHuman (tools/askHuman.ts)
-- getFileFeedback (tools/getFileFeedback.ts)
-- reactFeedback (tools/react-feedback.ts)
+This package is designed to be used within a Token Ring AI project. To install:
 
-Installation
-This package is part of the monorepo and is typically consumed by the Token Ring runtime. If you need to depend on it
-directly:
+1. Ensure you have Node.js (v18+) and npm/yarn installed.
+2. Add the package as a dependency:
+   ```
+   npm install @tokenring-ai/feedback
+   ```
+3. Build the TypeScript code:
+   ```
+   npm run build
+   ```
+   This compiles `.ts` files to JavaScript using the provided `tsconfig.json`.
 
-- Add dependency: "@tokenring-ai/feedback": "0.1.0"
-- Ensure peer packages are available in your workspace and registered in your ServiceRegistry where appropriate:
-- @tokenring-ai/registry
-- @tokenring-ai/chat
-- @tokenring-ai/filesystem
-- Additional runtime deps used internally by certain tools:
-- express, open (browser launching), marked (markdown rendering), moment-timezone, esbuild (React preview bundling),
-  esbuild-plugin-external-global
+Dependencies are automatically resolved via `package.json`. For development, install dev dependencies:
+```
+npm install --save-dev typescript @types/express
+```
 
-Tool: askHuman
+Import the package in your agent setup:
+```typescript
+import { packageInfo } from '@tokenring-ai/feedback';
+```
 
-- File: pkg/feedback/tools/askHuman.ts
-- Description: Ask the human a question and log the prompt to the chat. Supports free-text or choice-based responses
-  depending on the parameters you pass. Returns a structured object describing the asked question; the human’s answer is
-  expected to be provided via the chat interface.
-- Parameters (Zod schema):
-- question: string (required)
-- choices?: string[]
-- Optional. Provide options for single or multiple selection.
-- response_type?: "text" | "single" | "multiple"
-- Optional. If choices are provided and response_type is omitted, it defaults to "single". If no choices are provided
-  and response_type is omitted, it defaults to "text".
-- Return shape (type union):
-- For textual prompt:
+## Package Structure
+
+The package follows a simple structure:
+- **index.ts**: Main entry point. Exports `packageInfo` (implements `TokenRingPackage`) including name, version, description, and the tools object.
+- **tools.ts**: Re-exports all tools for easy import.
+- **tools/**: Directory containing the core tools:
+  - **askHuman.ts**: Handles textual or choice-based questions to humans via chat.
+  - **getFileFeedback.ts**: Presents file content in a browser UI for review.
+  - **react-feedback.ts**: Bundles and previews React components in the browser.
+- **package.json**: Defines metadata, dependencies, scripts (e.g., build), and exports.
+- **tsconfig.json**: TypeScript compiler options for ES2022, NodeNext module resolution, strict typing.
+- **README.md**: This documentation file.
+- **LICENSE**: MIT license.
+
+No subdirectories beyond `tools/`. The package is TypeScript-based and uses ES modules.
+
+## Core Components
+
+The package exposes three main tools, each as a module with `name`, `description`, `inputSchema` (Zod schema), and an `execute` function. Tools are invoked by agents via the `tools` object in `packageInfo`. They require an `Agent` instance and a `FileSystemService` (for file tools).
+
+### askHuman Tool
+
+**Description**: Allows the AI to ask the human a question about the current task. Supports free-text responses or single/multiple-choice selections. The tool logs the question to the agent's chat/info line and returns a result indicating the question has been asked, awaiting human response in the chat.
+
+**Key Methods/Properties**:
+- `inputSchema`: Zod object with `question` (string, required), `choices` (string array, optional), `response_type` (enum: 'text' | 'single' | 'multiple', optional).
+  - Defaults: 'text' if no choices; 'single' if choices provided without type.
+- `execute(params: AskHumanParams, agent: Agent)`: Promise<AskHumanResult>.
+  - Throws if `question` missing.
+  - Logs question to agent (with choices if provided).
+  - Returns result with `status` ('question_asked_text' or 'question_asked_choices'), `question`, `response_type`, `timestamp`, and `message` (instructions for human).
+
+**Interactions**: The human responds directly in the chat interface. No browser UI; it's chat-based. The agent can parse the human's next message as the response.
+
+### getFileFeedback Tool
+
+**Description**: Displays file content in a temporary browser-based UI for human review. Supports rendering as plain text, Markdown (via marked), HTML (iframe), or JSON (pre-formatted). Human can accept/reject with optional comments. If accepted, saves to the specified `filePath` via FileSystemService; if rejected, saves to a timestamped `.rejected` file.
+
+**Key Methods/Properties**:
+- `inputSchema`: Zod object with `filePath` (string, required), `content` (string, required), `contentType` (string, default 'text/plain').
+  - Supported types: 'text/plain', 'text/markdown', 'text/x-markdown', 'text/html', 'application/json'.
+- `execute(params: GetFileFeedbackParams, agent: Agent)`: Promise<GetFileFeedbackResult | string>.
+  - Throws if `filePath` or `content` missing.
+  - Creates temp dir, generates HTML UI, starts Express server on random port, opens browser.
+  - Awaits POST to `/result` for feedback.
+  - Returns `{ status: 'accepted' | 'rejected', comment?: string, filePath?: string, rejectedFilePath?: string }`.
+  - Logs actions and cleans up temp files.
+
+**Interactions**: Uses Express for a static server serving the review HTML. Human interacts via buttons and textarea. Integrates with FileSystemService for saving.
+
+### react-feedback Tool
+
+**Description**: Bundles provided JSX/TSX code into a React app, serves it via a temporary browser UI, and collects accept/reject feedback with comments. If accepted, saves the code to `file` (or generated path); if rejected, saves to a timestamped `.rejected` file. Uses esbuild for fast bundling and external React from CDN.
+
+**Key Methods/Properties**:
+- `inputSchema`: Zod object with `code` (string, required), `file` (string, optional).
+- `execute(params: ReactFeedbackParams, agent: Agent)`: Promise<ReactFeedbackResult | ToolError | string>.
+  - Throws if `code` missing.
+  - Generates temp dir and file if `file` absent (e.g., 'React-Component-Preview-*.tsx').
+  - Bundles with esbuild (plugins for external globals like React).
+  - Generates HTML with React CDN scripts and overlay UI for feedback.
+  - Starts Express server, opens browser, awaits result.
+  - Returns `{ status: 'accept' | 'reject' | 'rejected', comment?: string }`.
+  - Logs preview URL and cleans up.
+
+**Interactions**: Similar to getFileFeedback but focused on React. Uses `externalGlobalPlugin` for browser globals. Human sees rendered component with accept/reject buttons.
+
+**Overall Interactions**: All tools pause agent execution until feedback is received. File-based tools use temp directories (prefixed 'file-feedback-' or 'react-preview-') and auto-cleanup. They require `FileSystemService` and log via `agent.infoLine`/`agent.errorLine`.
+
+## Usage Examples
+
+### 1. Asking a Text Question
+```typescript
+import { askHuman } from '@tokenring-ai/feedback/tools/askHuman.js';
+
+const agent = // ... your Agent instance
+
+const result = await askHuman.execute(
+  { question: 'What improvements would you suggest for this feature?' },
+  agent
+);
+console.log(result.message); // "The question has been asked to the human. Please provide your textual response in the chat."
+// Human responds in chat; agent processes next.
+```
+
+### 2. Multiple-Choice Question
+```typescript
+const result = await askHuman.execute(
   {
-  status: "question_asked_text";
-  question: string;
-  response_type: "text";
-  timestamp: string; // ISO
-  message: string; // instruction to provide textual response
-  }
-- For choices prompt:
+    question: 'Which option do you prefer?',
+    choices: ['Option A', 'Option B', 'Option C'],
+    response_type: 'multiple'
+  },
+  agent
+);
+// Logs numbered choices; human selects (e.g., "1,3") in chat.
+```
+
+### 3. Reviewing File Content (Markdown)
+```typescript
+import { getFileFeedback } from '@tokenring-ai/feedback/tools/getFileFeedback.js';
+
+const content = '# Sample Markdown\nThis is **bold** text.';
+const result = await getFileFeedback.execute(
   {
-  status: "question_asked_choices";
-  question: string;
-  choices: string[];
-  response_type: "single" | "multiple";
-  timestamp: string; // ISO
-  message: string; // instruction to select an option
-  }
-- Notes
-- If question is missing, the tool logs an error via ChatService and returns an error string.
+    filePath: 'docs/sample.md',
+    content,
+    contentType: 'text/markdown'
+  },
+  agent
+);
+if (result.status === 'accepted') {
+  console.log('Content saved to', result.filePath);
+}
+```
 
-Usage (askHuman)
+### 4. Previewing a React Component
+```typescript
+import { reactFeedback } from '@tokenring-ai/feedback/tools/react-feedback.js';
 
-import { ServiceRegistry } from "@tokenring-ai/registry";
-import ChatService from "@tokenring-ai/chat/ChatService";
-import * as askHuman from "@tokenring-ai/feedback/tools/askHuman";
+const jsxCode = `
+import React from 'react';
+export default function MyComponent() {
+  return <div>Hello, Feedback!</div>;
+}
+`;
+const result = await reactFeedback.execute(
+  { code: jsxCode, file: 'src/MyComponent.tsx' },
+  agent
+);
+if (result.status === 'accept') {
+  console.log('Component saved');
+}
+```
 
-const registry = new ServiceRegistry();
-registry.registerService(new ChatService());
+## Configuration Options
 
-// Text question
-const resText = await askHuman.execute({ question: "Should we proceed with approach A?" }, registry);
+- **contentType** (getFileFeedback): Controls rendering ('text/plain' default). Markdown uses `marked` library; HTML via iframe.
+- **response_type** (askHuman): Defaults based on `choices` presence.
+- No environment variables or global configs; tool params are per-invocation.
+- Server ports are auto-assigned (random available port via `server.listen(0)`).
+- Temp directories use OS tmpdir with prefixes for isolation.
 
-// Multiple choice question
-const resChoices = await askHuman.execute({
-question: "Pick the target environment",
-choices: ["dev", "staging", "prod"],
-response_type: "single"
-}, registry);
+## API Reference
 
-Tool: getFileFeedback
+### askHuman
+- **execute(params: { question: string; choices?: string[]; response_type?: 'text'|'single'|'multiple' }, agent: Agent)**: Promise<AskHumanResult>
+  - Returns: Object with `status`, `question`, `response_type`, `timestamp`, `message`, optional `choices`.
 
-- File: pkg/feedback/tools/getFileFeedback.ts
-- Description: Serve a local browser UI to review provided content (text/plain, text/markdown, text/x-markdown,
-  text/html, application/json). The user can Accept or Reject with an optional comment. If accepted, the content is
-  written to filePath; if rejected, a timestamped .rejected copy alongside filePath is written.
-- Parameters (Zod schema):
-- filePath: string (required)
-- The repository path where content should be stored upon acceptance.
-- content: string (required)
-- The content to review.
-- contentType?: string (default: "text/plain")
-- One of e.g. "text/plain", "application/json", "text/markdown", "text/x-markdown", or "text/html". Markdown is
-  rendered to HTML; HTML is shown via an iframe; JSON/plain are displayed in a <pre> block.
-- Return shape:
-  {
-  status: "accepted" | "rejected";
-  comment?: string;
-  filePath?: string; // set when accepted
-  rejectedFilePath?: string; // set when rejected (base path used for rejected copy naming)
-  }
-- Behavior
-- Launches a small express server that serves a review UI at a random localhost port and opens it in the system browser
-  via open().
-- Accept writes content to filePath; Reject writes filePath with a .rejectedYYYYMMDD-HHmmss suffix before the
-  extension.
-- All key steps are logged via ChatService.
-- If filePath or content is missing, logs an error and returns an error string.
+### getFileFeedback
+- **execute(params: { filePath: string; content: string; contentType?: string }, agent: Agent)**: Promise<GetFileFeedbackResult>
+  - Returns: Object with `status` ('accepted'|'rejected'), `comment?`, `filePath?`, `rejectedFilePath?`.
 
-Usage (getFileFeedback)
+### reactFeedback
+- **execute(params: { code: string; file?: string }, agent: Agent)**: Promise<ReactFeedbackResult | ToolError>
+  - Returns: `{ status: 'accept'|'reject'|'rejected'; comment?: string }` or `{ error: string }`.
 
-import { ServiceRegistry } from "@tokenring-ai/registry";
-import ChatService from "@tokenring-ai/chat/ChatService";
-import { FileSystemService } from "@tokenring-ai/filesystem";
-import * as getFileFeedback from "@tokenring-ai/feedback/tools/getFileFeedback";
+All tools use Zod for input validation. Errors throw exceptions (e.g., missing params).
 
-const registry = new ServiceRegistry();
-registry.registerService(new ChatService());
-registry.registerService(new FileSystemService());
+## Dependencies
 
-const res = await getFileFeedback.execute({
-filePath: "docs/PROPOSAL.md",
-content: "# Proposal\n\nThis is a draft.",
-contentType: "text/markdown"
-}, registry);
+- **Core Token Ring**: `@tokenring-ai/agent@0.1.0`, `@tokenring-ai/filesystem@0.1.0`
+- **Build/Bundling**: `esbuild@^0.25.9`, `esbuild-plugin-external-global@^1.0.1`
+- **Server/UI**: `express@^5.1.0`, `open@^10.2.0`
+- **Rendering**: `marked@^16.1.2` (Markdown), `moment-timezone@^0.6.0` (timestamps), `react@^19.1.1`, `react-dom@^19.1.1`
+- **Validation**: `zod` (peer or bundled)
+- **Dev**: `typescript@^5.9.2`, `@types/express@^5.0.3`
 
-Tool: reactFeedback
+## Contributing/Notes
 
-- File: pkg/feedback/tools/react-feedback.ts
-- Description: Bundle and preview a provided React component in the browser, then capture Accept/Reject with an optional
-  comment. If accepted, writes the code to the specified file (or a generated name); if rejected, writes a timestamped
-  .rejected copy.
-- Parameters (Zod schema):
-- code: string (required)
-- Complete source of the component (JSX/TSX) to preview.
-- file?: string
-- Optional file path where to write upon acceptance. If omitted, a temporary name is used during preview and the
-  accepted content is written to that name in the repository.
-- Return shape (union):
-- Accepted: { status: "accept"; comment?: string }
-- Rejected: { status: "reject" | "rejected"; comment?: string }
-- Behavior
-- Uses esbuild to bundle the component with externals (react, react-dom, react/jsx-runtime provided via globals),
-  serves a simple HTML shell with Accept/Reject and comment field.
-- On accept, writes the provided code to file; on reject, writes file with a .rejectedYYYYMMDD-HH:mm suffix.
-- Returns the result object and logs the preview URL via ChatService.
-- If code is missing, returns an error string.
+- **Building/Testing**: Run `npm run build` to compile. Tests can use Vitest (mentioned in tsconfig). No test files in current structure.
+- **Limitations**: Browser tools require a graphical environment (e.g., no headless servers without X11 forwarding). `open` may fail in some envs (falls back to URL logging). React previews use development CDNs; production use not supported. Binary files not handled (text-only focus). Temp cleanup is best-effort.
+- **Error Handling**: Tools throw on invalid inputs; use try-catch in agent code. Logs errors via agent.
+- Contributions: Follow TypeScript strict mode. Update schemas for new params. Ensure temp file security (no sensitive data exposure).
 
-Usage (reactFeedback)
-
-import { ServiceRegistry } from "@tokenring-ai/registry";
-import ChatService from "@tokenring-ai/chat/ChatService";
-import { FileSystemService } from "@tokenring-ai/filesystem";
-import * as reactFeedback from "@tokenring-ai/feedback/tools/react-feedback";
-
-const registry = new ServiceRegistry();
-registry.registerService(new ChatService());
-registry.registerService(new FileSystemService());
-
-const code = `export default function Demo(){ return <div>Hello!</div>; }`;
-const res = await reactFeedback.execute({ code, file: "components/Demo.tsx" }, registry);
-
-Notes
-
-- These tools presume you register concrete ChatService and FileSystemService instances with your ServiceRegistry so
-  they can log and read/write files. The Token Ring runtime typically wires these services for you.
-- getFileFeedback renders markdown using marked and opens a temporary HTTP server to host the review UI; ensure
-  localhost access is available.
-- reactFeedback bundles via esbuild and relies on an HTML shell that exposes React as globals; your component is
-  rendered as default export.
-
-License
-
-- MIT (same as the repository license).
+For issues or extensions, refer to the Token Ring AI repository guidelines.
