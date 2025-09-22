@@ -50,7 +50,7 @@ export async function execute(
   {filePath, content, contentType = "text/plain"}: GetFileFeedbackParams,
   agent: Agent,
 ): Promise<string | GetFileFeedbackResult> {
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Validate required parameters – throw error instead of returning
   if (!filePath || !content) {

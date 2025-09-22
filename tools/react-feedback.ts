@@ -69,7 +69,7 @@ export async function execute(
     // Throw an error instead of returning an error object.
     throw new Error(`[${name}] code is required parameter for react-feedback.`);
   }
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
   if (file == null)
     file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
