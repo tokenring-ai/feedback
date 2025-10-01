@@ -3,7 +3,7 @@ import {FileSystemService} from "@tokenring-ai/filesystem";
 import esbuild from "esbuild";
 import {externalGlobalPlugin} from "esbuild-plugin-external-global";
 import express, {type Request, type Response} from "express";
-import moment from "moment-timezone";
+import { format } from "date-fns";
 import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
@@ -118,7 +118,7 @@ export async function execute(
   } else {
     const rejectFile = file.replace(
       /\./,
-      `.rejected${moment().format("YYYYMMDD-HH:mm")}.`,
+      `.rejected${format(new Date(), "yyyyMMdd-HH:mm")}.`,
     );
     await fileSystem.writeFile(rejectFile, code);
   }

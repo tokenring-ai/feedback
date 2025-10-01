@@ -2,7 +2,7 @@ import Agent from "@tokenring-ai/agent/Agent";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import express, {type Request, type Response} from "express";
 import {marked} from "marked";
-import moment from "moment-timezone";
+import { format } from "date-fns";
 import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
@@ -102,7 +102,7 @@ export async function execute(
   } else {
     const rejectFile = filePath.replace(
       /(\.[^.]+)$|$/,
-      `.rejected${moment().format("YYYYMMDD-HHmmss")}$1`,
+      `.rejected${format(new Date(), "yyyyMMdd-HHmmss")}$1`,
     );
     await fileSystem.writeFile(rejectFile, content);
     agent.infoLine(
