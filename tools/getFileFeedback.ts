@@ -95,7 +95,7 @@ export async function execute(
 
   // 5. If accepted ➜ copy into repo
   if (result.accepted) {
-    await fileSystem.writeFile(filePath, content);
+    await fileSystem.writeFile(filePath, content, agent);
     agent.infoLine(
       `[${name}] Feedback accepted. Content written to ${filePath}`,
     );
@@ -104,7 +104,7 @@ export async function execute(
       /(\.[^.]+)$|$/,
       `.rejected${moment().format("YYYYMMDD-HHmmss")}$1`,
     );
-    await fileSystem.writeFile(rejectFile, content);
+    await fileSystem.writeFile(rejectFile, content, agent);
     agent.infoLine(
       `[${name}] Feedback rejected. Content written to ${rejectFile}`,
     );
