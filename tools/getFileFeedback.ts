@@ -1,4 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import {format} from "date-fns";
 import express, {type Request, type Response} from "express";
@@ -11,14 +12,14 @@ import open from "open";
 import {z} from "zod";
 
 // Tool name export as required
-export const name = "feedback/getFileFeedback";
+const name = "feedback/getFileFeedback";
 
 const TMP_PREFIX = "file-feedback-";
 
-export const description =
+const description =
   "This tool allows you to present the content of a file to the user, solicit feedback (accept/reject with comments), and optionally write the content to a specified file path if accepted. If the `contentType` is `text/markdown` or `text/x-markdown`, the content will be rendered as HTML for review.";
 
-export const inputSchema = z
+const inputSchema = z
   .object({
     filePath: z
       .string()
@@ -46,8 +47,8 @@ export interface GetFileFeedbackResult {
   rejectedFilePath?: string;
 }
 
-export async function execute(
-  {filePath, content, contentType = "text/plain"}: GetFileFeedbackParams,
+async function execute(
+  {filePath, content, contentType = "text/plain"}: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<string | GetFileFeedbackResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -261,3 +262,7 @@ async function startFileReviewServer(tmpDir: string, agent: Agent) {
     stop: () => server.close(() => agent.infoLine(`[${name}] File review server stopped.`)),
   };
 }
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;

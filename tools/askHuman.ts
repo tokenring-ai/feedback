@@ -1,15 +1,16 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 
 /**
  * Allows the AI to ask the human a question about the current task.
  */
-export const name = "feedback/askHuman";
+const name = "feedback/askHuman";
 
-export const description =
+const description =
   "This tool allows the AI to ask the human a question about the current task and receive their response. It supports textual answers, as well as single-choice and multiple-choice questions when options are provided. Use the 'response_type' parameter ('text', 'single', 'multiple') to specify the expected type of response.";
 
-export const inputSchema = z.object({
+const inputSchema = z.object({
   question: z.string().describe("The question to ask the human."),
   choices: z
     .array(z.string())
@@ -24,12 +25,6 @@ export const inputSchema = z.object({
     )
     .optional(),
 });
-
-interface AskHumanParams {
-  question?: string;
-  choices?: string[];
-  response_type?: "text" | "single" | "multiple";
-}
 
 interface AskHumanBase {
   question: string;
@@ -53,8 +48,8 @@ export type AskHumanResult = AskHumanTextResult | AskHumanChoicesResult;
  * Executes the askHuman tool.
  * Returns a result object. Errors are thrown as exceptions.
  */
-export async function execute(
-  args: AskHumanParams,
+async function execute(
+  args: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<AskHumanResult> {
   const {question, choices, response_type: argResponseType} = args;
@@ -107,3 +102,7 @@ export async function execute(
     };
   }
 }
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;

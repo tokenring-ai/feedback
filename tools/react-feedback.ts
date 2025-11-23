@@ -1,4 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import {format} from "date-fns";
 import esbuild from "esbuild";
@@ -12,16 +13,16 @@ import open from "open";
 import {z} from "zod";
 
 // Export the tool name in the required "packageName/toolName" format.
-export const name = "feedback/react-feedback";
+const name = "feedback/react-feedback";
 
 const TMP_PREFIX = "react-preview-";
 
 /**
  * Render & review a React component in the browser.
  */
-export const description =
+const description =
   "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
-export const inputSchema = z
+const inputSchema = z
   .object({
     code: z
       .string()
@@ -61,8 +62,8 @@ export interface ToolError {
   error: string;
 }
 
-export async function execute(
-  {file, code}: ReactFeedbackParams,
+async function execute(
+  {file, code}: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<string | ReactFeedbackResult | ToolError> {
   if (!code) {
@@ -216,3 +217,7 @@ async function startServer(tmpDir: string, agent: Agent) {
     stop: () => server.close(),
   };
 }
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;
