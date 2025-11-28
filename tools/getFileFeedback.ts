@@ -71,7 +71,7 @@ async function execute(
     await fs.writeFile(path.join(tmpDir, userContentFileName), content, "utf8");
   }
 
-  // 2. Make index.html for review UI
+  // 2. Make an index.html file for the review UI
   const indexHtmlContent = genFileViewHTML({
     contentString: content,
     contentType,
