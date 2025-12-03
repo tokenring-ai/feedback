@@ -1,6 +1,6 @@
-import {default as askHuman} from "./tools/askHuman.js";
-import {default as getFileFeedback} from "./tools/getFileFeedback.js";
-import {default as reactFeedback} from "./tools/react-feedback.js";
+import askHuman from "./tools/askHuman.js";
+import getFileFeedback from "./tools/getFileFeedback.js";
+import reactFeedback from "./tools/react-feedback.js";
 
 export default {
   askHuman,
