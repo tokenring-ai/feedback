@@ -14,4 +14,4 @@ export default {
       chatService.addTools(packageJSON.name, tools)
     );
   },
-} as TokenRingPlugin;
+} satisfies TokenRingPlugin;
