@@ -220,4 +220,4 @@ async function startServer(tmpDir: string, agent: Agent) {
 
 export default {
   name, description, inputSchema, execute,
-} as TokenRingToolDefinition<typeof inputSchema>;
+} satisfies TokenRingToolDefinition<typeof inputSchema>;
