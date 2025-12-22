@@ -20,7 +20,8 @@
   },
   "devDependencies": {
     "typescript": "catalog:",
-    "@types/express": "^5.0.6"
+    "@types/express": "^5.0.6",
+    "vitest": "catalog:"
   },
   "exports": {
     ".": "./index.ts",
@@ -29,7 +30,10 @@
   "types": "./index.ts",
   "license": "MIT",
   "scripts": {
-    "build": "tsc -p tsconfig.tson"
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "type": "module"
 }
