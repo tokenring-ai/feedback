@@ -13,7 +13,7 @@ import open from "open";
 import {z} from "zod";
 
 // Export the tool name in the required "packageName/toolName" format.
-const name = "feedback/react-feedback";
+const name = "feedback_react-feedback";
 
 const TMP_PREFIX = "react-preview-";
 

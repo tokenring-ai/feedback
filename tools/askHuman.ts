@@ -5,7 +5,7 @@ import {z} from "zod";
 /**
  * Allows the AI to ask the human a question about the current task.
  */
-const name = "feedback/askHuman";
+const name = "feedback_askHuman";
 
 const description =
   "This tool allows the AI to ask the human a question about the current task and receive their response. It supports textual answers, as well as single-choice and multiple-choice questions when options are provided. Use the 'response_type' parameter ('text', 'single', 'multiple') to specify the expected type of response.";

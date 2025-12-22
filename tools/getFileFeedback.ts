@@ -12,7 +12,7 @@ import open from "open";
 import {z} from "zod";
 
 // Tool name export as required
-const name = "feedback/getFileFeedback";
+const name = "feedback_getFileFeedback";
 
 const TMP_PREFIX = "file-feedback-";
 
