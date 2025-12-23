@@ -35,12 +35,6 @@ const inputSchema = z
       .describe("The filename/path of the React component to be previewed"),
   })
   .strict();
-
-export interface ReactFeedbackParams {
-  code?: string;
-  file?: string;
-}
-
 export interface ReactFeedbackResultAccepted {
   status: "accept";
   comment?: string;

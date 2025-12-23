@@ -34,12 +34,6 @@ const inputSchema = z
   })
   .strict();
 
-export interface GetFileFeedbackParams {
-  filePath?: string;
-  content?: string;
-  contentType?: string;
-}
-
 export interface GetFileFeedbackResult {
   status: "accepted" | "rejected";
   comment?: string;
