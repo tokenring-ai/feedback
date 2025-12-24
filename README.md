@@ -14,21 +14,13 @@ The `@tokenring-ai/feedback` package provides essential tools for human-in-the-l
 - **Seamless Integration**: Automatically registers with Token Ring applications via plugin system
 - **Safe Handling**: Automatic cleanup of temporary files and secure isolation
 - **Type-Safe**: Full TypeScript support with Zod schema validation
+- **Browser Preview**: Uses Express servers for local preview with automatic cleanup
+- **Bundling Support**: ESBuild integration for React component bundling
 
 ## Installation
 
 ```bash
-npm install @tokenring-ai/feedback
-```
-
-### Development Setup
-
-```bash
-# Install development dependencies
-npm install --save-dev typescript @types/express
-
-# Build the TypeScript code
-npm run build
+bun install @tokenring-ai/feedback
 ```
 
 ## Package Structure
@@ -112,6 +104,7 @@ class MyAgent {
 **Purpose**: Ask humans questions via chat interface with support for text or multiple-choice responses.
 
 **Input Schema** (Zod):
+
 ```typescript
 {
   question: string,           // Required: The question to ask
@@ -121,6 +114,7 @@ class MyAgent {
 ```
 
 **Example Usage**:
+
 ```typescript
 // Ask an open-ended question
 const result = await askHuman.execute({
@@ -155,11 +149,12 @@ const result = await askHuman.execute({
 **Purpose**: Present file content in a browser-based UI for human review and feedback.
 
 **Input Schema** (Zod):
+
 ```typescript
 {
   filePath: string,          // Required: Target path for accepted content
   content: string,           // Required: File content to review
-  contentType: string        // Optional: MIME type (default: "text/plain")
+  contentType?: string       // Optional: MIME type (default: "text/plain")
 }
 ```
 
@@ -170,6 +165,7 @@ const result = await askHuman.execute({
 - `application/json`: JSON with syntax highlighting
 
 **Example Usage**:
+
 ```typescript
 // Review Markdown content
 const result = await getFileFeedback.execute({
@@ -217,6 +213,7 @@ const result = await getFileFeedback.execute({
 **Purpose**: Bundle and preview React components in browsers for visual feedback.
 
 **Input Schema** (Zod):
+
 ```typescript
 {
   code: string,              // Required: JSX/TSX code to preview
@@ -225,6 +222,7 @@ const result = await getFileFeedback.execute({
 ```
 
 **Example Usage**:
+
 ```typescript
 const jsxCode = `
 import React from 'react';
@@ -246,6 +244,7 @@ const result = await reactFeedback.execute({
 ```
 
 **Response Format**:
+
 ```typescript
 {
   status: "accept" | "reject" | "rejected",
@@ -271,6 +270,7 @@ The package automatically registers with Token Ring applications:
 export default {
   name: "@tokenring-ai/feedback",
   version: "0.2.0",
+  description: "Feedback package for Token Ring",
   install(app: TokenRingApp) {
     app.waitForService(ChatService, chatService =>
       chatService.addTools(packageJSON.name, tools)
@@ -308,6 +308,7 @@ The package uses TypeScript with the following settings:
 ### Development Dependencies
 - `typescript@catalog:` - TypeScript compiler
 - `@types/express@^5.0.6` - Express type definitions
+- `vitest@catalog:` - Testing framework
 
 ## Error Handling
 
@@ -404,10 +405,16 @@ Tools maintain minimal state:
 
 ```bash
 # Build the package
-npm run build
+bun run build
 
-# Run tests (if configured)
-npm test
+# Run tests
+bun run test
+
+# Run tests with coverage
+bun run test:coverage
+
+# Run tests in watch mode
+bun run test:watch
 ```
 
 ### Development Guidelines
@@ -428,27 +435,6 @@ npm test
 - Proper TypeScript types and Zod validation
 - Agent integration via service requirements
 
-## Contributing
-
-### Adding New Tools
-
-1. Create tool file in `tools/` directory
-2. Implement Zod schema and execute function
-3. Export tool definition from `tools.ts`
-4. Update plugin registration if needed
-5. Add comprehensive documentation
-
-### Testing Guidelines
-
-- Test parameter validation
-- Test error handling scenarios
-- Test browser integration (if applicable)
-- Test cleanup and resource management
-
 ## License
 
 MIT License - see LICENSE file for details.
-
-## Support
-
-For issues, questions, or contributions, please refer to the main Token Ring AI repository guidelines and issue tracker.
