@@ -27,7 +27,7 @@ bun install @tokenring-ai/feedback
 
 ```
 pkg/feedback/
-├── index.ts              # Main entry point (empty)
+├── index.ts              # Main entry point
 ├── plugin.ts             # Plugin registration with Token Ring
 ├── tools.ts              # Tool exports aggregator
 ├── tools/                # Core feedback tools
@@ -53,7 +53,7 @@ const app = new TokenRingApp();
 app.install(feedbackPlugin);
 
 // Tools are now available via the chat service
-// Use: /feedback/askHuman, /feedback/getFileFeedback, /feedback/react-feedback
+// Use: /feedback_askHuman, /feedback_getFileFeedback, /feedback_react-feedback
 ```
 
 ### Direct Tool Usage
@@ -99,7 +99,7 @@ class MyAgent {
 
 ### askHuman Tool
 
-**Tool Name**: `feedback/askHuman`
+**Tool Name**: `feedback_askHuman`
 
 **Purpose**: Ask humans questions via chat interface with support for text or multiple-choice responses.
 
@@ -144,7 +144,7 @@ const result = await askHuman.execute({
 
 ### getFileFeedback Tool
 
-**Tool Name**: `feedback/getFileFeedback`
+**Tool Name**: `feedback_getFileFeedback`
 
 **Purpose**: Present file content in a browser-based UI for human review and feedback.
 
@@ -208,7 +208,7 @@ const result = await getFileFeedback.execute({
 
 ### react-feedback Tool
 
-**Tool Name**: `feedback/react-feedback`
+**Tool Name**: `feedback_react-feedback`
 
 **Purpose**: Bundle and preview React components in browsers for visual feedback.
 
@@ -317,13 +317,13 @@ All tools follow consistent error handling patterns:
 ```typescript
 // Parameter validation with Zod schemas
 if (!question) {
-  throw new Error(`[feedback/askHuman] Question is required.`);
+  throw new Error(`[feedback_askHuman] Question is required.`);
 }
 
 // Proper error messages
 if (!filePath || !content) {
   throw new Error(
-    `[feedback/getFileFeedback] filePath and content are required parameters.`
+    `[feedback_getFileFeedback] filePath and content are required parameters.`
   );
 }
 
@@ -424,12 +424,12 @@ bun run test:watch
 - Ensure proper error handling and logging
 - Test in various environments
 - Maintain compatibility with Token Ring AI ecosystem
-- Use proper tool naming conventions (`feedback/toolName`)
+- Use proper tool naming conventions (`feedback_toolName`)
 - Implement proper cleanup for temporary resources
 
 ### Code Style
 
-- Consistent tool naming: `feedback/toolName`
+- Consistent tool naming: `feedback_toolName`
 - Proper error messages with tool prefixes
 - Async/await patterns throughout
 - Proper TypeScript types and Zod validation
