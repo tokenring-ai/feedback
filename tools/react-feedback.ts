@@ -109,13 +109,13 @@ async function execute(
 
   // 6. If accepted ➜ copy into repo
   if (result.status === "accept") {
-    await fileSystem.writeFile(file, code);
+    await fileSystem.writeFile(file, code, agent);
   } else {
     const rejectFile = file.replace(
       /\./,
       `.rejected${format(new Date(), "yyyyMMdd-HH:mm")}.`,
     );
-    await fileSystem.writeFile(rejectFile, code);
+    await fileSystem.writeFile(rejectFile, code, agent);
   }
 
   await fs.rm(tmp, {recursive: true, force: true});
