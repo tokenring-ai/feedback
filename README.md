@@ -266,17 +266,25 @@ const result = await reactFeedback.execute({
 The package automatically registers with Token Ring applications:
 
 ```typescript
-// In plugin.ts
+import { TokenRingPlugin } from "@tokenring-ai/app";
+import { ChatService } from "@tokenring-ai/chat";
+import { z } from "zod";
+import packageJSON from './package.json' with { type: 'json' };
+import tools from "./tools.ts";
+
+const packageConfigSchema = z.object({});
+
 export default {
-  name: "@tokenring-ai/feedback",
-  version: "0.2.0",
-  description: "Feedback package for Token Ring",
-  install(app: TokenRingApp) {
+  name: packageJSON.name,
+  version: packageJSON.version,
+  description: packageJSON.description,
+  install(app, config) {
     app.waitForService(ChatService, chatService =>
       chatService.addTools(packageJSON.name, tools)
     );
   },
-} satisfies TokenRingPlugin;
+  config: packageConfigSchema
+} satisfies TokenRingPlugin<typeof packageConfigSchema>;
 ```
 
 ### TypeScript Configuration
@@ -286,24 +294,6 @@ The package uses TypeScript with the following settings:
 - Module: NodeNext
 - Strict mode enabled
 - ES module resolution
-
-## Dependencies
-
-### Runtime Dependencies
-- `@tokenring-ai/agent@0.2.0` - Core agent functionality
-- `@tokenring-ai/chat@0.2.0` - Chat service integration
-- `@tokenring-ai/filesystem@0.2.0` - File system operations
-- `@tokenring-ai/app@0.2.0` - Application framework
-- `zod@catalog:` - Schema validation
-- `express@^5.2.1` - Web server for browser-based tools
-- `esbuild@^0.27.1` - JavaScript bundling for React components
-- `esbuild-plugin-external-global@^1.0.1` - External global plugin
-- `marked@^17.0.1` - Markdown rendering
-- `date-fns@^4.1.0` - Date formatting
-- `date-fns-tz@^3.2.0` - Timezone support
-- `open@^11.0.0` - Browser opening
-- `react@catalog:` - React framework
-- `react-dom@catalog:` - React DOM
 
 ### Development Dependencies
 - `typescript@catalog:` - TypeScript compiler
@@ -359,12 +349,6 @@ const fileSystem = agent.requireServiceByType(FileSystemService);
 agent.infoLine(`[tool-name] Operation started`);
 agent.errorLine(`[tool-name] Operation failed:`, error);
 ```
-
-### Service Dependencies
-
-- **FileSystemService**: Required for file operations
-- **ChatService**: Required for tool registration
-- **Agent**: Required for logging and service access
 
 ### State Management
 
@@ -437,4 +421,4 @@ bun run test:watch
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - see [LICENSE](./LICENSE) file for details.
