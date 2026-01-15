@@ -80,9 +80,9 @@ async function execute(
   // 4. Launch browser & await user choice
   if (typeof (open as unknown as Function) === "function") {
     await open(url);
-    agent.infoLine(`[${name}] File review UI opened at: ${url}`);
+    agent.infoMessage(`[${name}] File review UI opened at: ${url}`);
   } else {
-    agent.infoLine(
+    agent.infoMessage(
       `[${name}] File review UI available at: ${url} (open command mocked/unavailable)`,
     );
   }
@@ -91,7 +91,7 @@ async function execute(
   // 5. If accepted ➜ copy into repo
   if (result.accepted) {
     await fileSystem.writeFile(filePath, content, agent);
-    agent.infoLine(
+    agent.infoMessage(
       `[${name}] Feedback accepted. Content written to ${filePath}`,
     );
   } else {
@@ -100,7 +100,7 @@ async function execute(
       `.rejected${format(new Date(), "yyyyMMdd-HHmmss")}$1`,
     );
     await fileSystem.writeFile(rejectFile, content, agent);
-    agent.infoLine(
+    agent.infoMessage(
       `[${name}] Feedback rejected. Content written to ${rejectFile}`,
     );
   }
@@ -109,7 +109,7 @@ async function execute(
   try {
     await fs.rm(tmpDir, {recursive: true, force: true});
   } catch (err: unknown) {
-    agent.errorLine(
+    agent.errorMessage(
       `[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error,
     );
   }
@@ -234,7 +234,7 @@ async function startFileReviewServer(tmpDir: string, agent: Agent) {
     const {accepted, comment} = req.body as { accepted: boolean; comment?: string };
     res.status(200).send("ok");
     resolveResult({accepted, comment});
-    agent.infoLine(
+    agent.infoMessage(
       `[${name}] Feedback received: ${accepted ? "Accepted" : "Rejected"}${
         comment ? " with comment: " + comment : ""}`
     );
@@ -246,14 +246,14 @@ async function startFileReviewServer(tmpDir: string, agent: Agent) {
   const address = server.address();
   const port = typeof address === "string" ? 0 : (address?.port ?? 0);
   const url = `http://localhost:${port}/index.html`;
-  agent.infoLine(
+  agent.infoMessage(
     `[${name}] File review server running. Please navigate to: ${url}`,
   );
 
   return {
     resultPromise,
     url,
-    stop: () => server.close(() => agent.infoLine(`[${name}] File review server stopped.`)),
+    stop: () => server.close(() => agent.infoMessage(`[${name}] File review server stopped.`)),
   };
 }
 

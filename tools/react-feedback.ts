@@ -204,7 +204,7 @@ async function startServer(tmpDir: string, agent: Agent) {
   const url = `http://localhost:${port}/index.html`;
 
   // Prefix informational messages with the tool name as required.
-  agent.infoLine(`[${name}] Preview running on ${url}`);
+  agent.infoMessage(`[${name}] Preview running on ${url}`);
   return {
     resultPromise,
     url,
