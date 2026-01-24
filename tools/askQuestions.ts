@@ -7,6 +7,7 @@ import {z} from "zod";
  * Allows the AI to ask the user a question about the current task.
  */
 const name = "ask_questions";
+const displayName = "Feedback/askQuestions";
 
 const description =
   "The ask_questions tool is to be called when feedback from the user is necessary, or when you are unsure or uncertain about the proper path to take, " +
@@ -113,5 +114,5 @@ async function execute(
 }
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

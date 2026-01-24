@@ -13,6 +13,7 @@ import {z} from "zod";
 
 // Tool name export as required
 const name = "feedback_getFileFeedback";
+const displayName = "Feedback/getFileFeedback";
 
 const TMP_PREFIX = "file-feedback-";
 
@@ -258,5 +259,5 @@ async function startFileReviewServer(tmpDir: string, agent: Agent) {
 }
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

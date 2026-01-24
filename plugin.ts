@@ -13,7 +13,7 @@ export default {
   description: packageJSON.description,
   install(app, config) {
     app.waitForService(ChatService, chatService =>
-      chatService.addTools(packageJSON.name, tools)
+      chatService.addTools(tools)
     );
   },
   config: packageConfigSchema

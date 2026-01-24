@@ -14,6 +14,7 @@ import {z} from "zod";
 
 // Export the tool name in the required "packageName/toolName" format.
 const name = "feedback_react-feedback";
+const displayName = "Feedback/react-feedback";
 
 const TMP_PREFIX = "react-preview-";
 
@@ -213,5 +214,5 @@ async function startServer(tmpDir: string, agent: Agent) {
 }
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;
