@@ -1,21 +1,18 @@
 # @tokenring-ai/feedback
 
-A comprehensive feedback collection package for the Token Ring AI framework, enabling AI agents to solicit and collect feedback from human users through various interactive methods.
-
 ## Overview
 
-The `@tokenring-ai/feedback` package provides essential tools for human-in-the-loop interactions in AI-driven workflows. It allows AI agents to pause execution, present information to users, and collect feedback through browser-based interfaces or chat interactions.
+The `@tokenring-ai/feedback` package provides essential tools for human-in-the-loop interactions in AI-driven workflows. It allows AI agents to pause execution, present information to users, and collect feedback through two main mechanisms: interactive chat-based questioning and browser-based file and component reviews.
 
-### Key Features
+## Key Features
 
-- **Human Questioning**: Ask humans open-ended questions or present multiple-choice options via chat
+- **Interactive Questioning**: Ask humans multiple questions via chat with support for text responses or multiple-choice options
 - **File Content Review**: Display file contents (text, Markdown, HTML, JSON) in browser UIs for approval/rejection with comments
 - **React Component Preview**: Bundle and preview React components in browsers for visual feedback
 - **Seamless Integration**: Automatically registers with Token Ring applications via plugin system
-- **Safe Handling**: Automatic cleanup of temporary files and secure isolation
+- **Auto-Cleanup**: Automatic cleanup of temporary files and directories
 - **Type-Safe**: Full TypeScript support with Zod schema validation
-- **Browser Preview**: Uses Express servers for local preview with automatic cleanup
-- **Bundling Support**: ESBuild integration for React component bundling
+- **Browser Preview**: Uses Express servers for local preview with user interaction feedback
 
 ## Installation
 
@@ -27,23 +24,23 @@ bun install @tokenring-ai/feedback
 
 ```
 pkg/feedback/
-├── index.ts              # Main entry point
-├── plugin.ts             # Plugin registration with Token Ring
-├── tools.ts              # Tool exports aggregator
-├── tools/                # Core feedback tools
-│   ├── askHuman.ts       # Human questioning via chat
-│   ├── getFileFeedback.ts # File content browser review
-│   └── react-feedback.ts # React component preview
-├── package.json          # Package metadata and dependencies
-├── vitest.config.ts      # Testing configuration
-└── README.md             # This documentation
+├── index.ts                  # Main entry point
+├── plugin.ts                 # TokenRing plugin integration
+├── tools.ts                  # Tool exports aggregator
+├── tools/                    # Core feedback tools
+│   ├── askQuestions.ts      # Human questioning via chat
+│   ├── getFileFeedback.ts   # File content browser review
+│   └── react-feedback.ts    # React component preview
+├── package.json              # Package metadata and dependencies
+├── vitest.config.ts          # Testing configuration
+└── README.md                 # This documentation
 ```
 
 ## Usage
 
 ### Plugin Integration
 
-The package integrates with Token Ring applications as a plugin. Tools are automatically registered with the chat service when installed.
+The package integrates with Token Ring applications as a plugin. All tools are automatically registered with the chat service when installed.
 
 ```typescript
 import TokenRingApp from "@tokenring-ai/app";
@@ -53,116 +50,112 @@ const app = new TokenRingApp();
 app.install(feedbackPlugin);
 
 // Tools are now available via the chat service
-// Use: /feedback_askHuman, /feedback_getFileFeedback, /feedback_react-feedback
+// Use: Feedback/askQuestions, Feedback/getFileFeedback, Feedback/react-feedback
 ```
 
-### Direct Tool Usage
+### Tools
 
-Tools can be used directly in agent code:
+#### Feedback/askQuestions
 
-```typescript
-import { askHuman } from "@tokenring-ai/feedback/tools/askHuman";
-import { getFileFeedback } from "@tokenring-ai/feedback/tools/getFileFeedback";
-import { reactFeedback } from "@tokenring-ai/feedback/tools/react-feedback";
+**Tool Name**: `ask_questions`
 
-class MyAgent {
-  async handleFeedback() {
-    // Ask a question via chat
-    const question = await askHuman.execute({
-      question: "What improvements would you suggest?",
-      response_type: "text"
-    }, this);
-    
-    // Review file content
-    const fileReview = await getFileFeedback.execute({
-      filePath: "docs/sample.md",
-      content: "# Sample Document\nThis needs your approval.",
-      contentType: "text/markdown"
-    }, this);
-    
-    // Preview React component
-    const componentCode = `
-      import React from 'react';
-      export default function MyComponent() {
-        return <div>Hello World</div>;
-      }
-    `;
-    const componentPreview = await reactFeedback.execute({
-      code: componentCode,
-      file: "src/components/MyComponent.tsx"
-    }, this);
-  }
-}
-```
-
-## API Reference
-
-### askHuman Tool
-
-**Tool Name**: `feedback_askHuman`
-
-**Purpose**: Ask humans questions via chat interface with support for text or multiple-choice responses.
+**Description**: The ask_questions tool is to be called when feedback from the user is necessary, or when you are unsure or uncertain about the proper path to take, or are unsure about how to complete the task the user has given. If there is uncertainty about the task to be completed, or you are worried about doing something incorrectly, use this tool, as it provides a strong guarantee that you are doing things aligned with the users intents. You can ask one or more questions, and you can also provide choices for the user to choose from for each one. The user will either pick one of these choices, or respond with their own answer if none of the options are aligned with their intent.
 
 **Input Schema** (Zod):
 
 ```typescript
 {
-  question: string,           // Required: The question to ask
-  choices?: string[],         // Optional: List of choices for selection
-  response_type?: "text" | "single" | "multiple"  // Optional: Response type
+  message: string,                           // Required: Description of the problem or uncertainty
+  questions: Array<{
+    question: string,                        // Required: Question to ask the user
+    choices: string[]                       // Required: Suggested choices for the user to select from
+  }>
 }
 ```
 
 **Example Usage**:
 
 ```typescript
-// Ask an open-ended question
-const result = await askHuman.execute({
-  question: "What improvements would you suggest for this feature?"
+const result = await askQuestions.execute({
+  message: "I'm unsure about the best approach for this feature.",
+  questions: [
+    {
+      question: "Which implementation method do you prefer?",
+      choices: ["Method A", "Method B", "Method C"]
+    }
+  ]
 }, agent);
 
-// Ask a multiple-choice question
-const result = await askHuman.execute({
-  question: "Which option do you prefer?",
-  choices: ["Option A", "Option B", "Option C"],
-  response_type: "single"
+// Ask multiple questions
+const result = await askQuestions.execute({
+  message: "I need information to complete this task properly.",
+  questions: [
+    {
+      question: "What is the priority level?",
+      choices: ["High", "Medium", "Low"]
+    },
+    {
+      question: "What is the deadline?",
+      choices: ["Urgent", "Within week", "Flexible"]
+    }
+  ]
 }, agent);
 
-// Ask for multiple selections
-const result = await askHuman.execute({
-  question: "Which features are most important?",
-  choices: ["Performance", "Usability", "Reliability", "Cost"],
-  response_type: "multiple"
+// Ask a question without choices (freeform response)
+const result = await askQuestions.execute({
+  message: "I need additional information about the requirements.",
+  questions: [
+    {
+      question: "What specific details do you need to provide?",
+      choices: []  // Empty choices array allows freeform input
+    }
+  ]
 }, agent);
 ```
 
-**Response Types**:
-- `AskHumanTextResult`: `{ status: "question_asked_text", question, response_type, timestamp, message }`
-- `AskHumanChoicesResult`: `{ status: "question_asked_choices", question, choices, response_type, timestamp, message }`
+**Response Format**:
 
-**Error Handling**: Throws exceptions for missing required parameters (e.g., empty question)
+Returns a string with the user's responses formatted as:
 
-### getFileFeedback Tool
+```
+The user has provided the following responses:
+
+Question 1
+Answer 1
+
+Question 2
+Answer 2
+```
+
+**Behavior**:
+- If choices are provided, users can select one option or choose "Other" for freeform input
+- If no choices are provided, users can type freeform responses
+- The tool continues asking questions until all are answered
+- If a user doesn't provide an answer, the agent uses its own judgment
+- Uses agent's askQuestion API with form-based questions and treeSelect/text fields
+
+#### Feedback/getFileFeedback
 
 **Tool Name**: `feedback_getFileFeedback`
 
-**Purpose**: Present file content in a browser-based UI for human review and feedback.
+**Description**: This tool allows you to present the content of a file to the user, solicit feedback (accept/reject with comments), and optionally write the content to a specified file path if accepted. If the `contentType` is `text/markdown` or `text/x-markdown`, the content will be rendered as HTML for review. Creates a browser-based UI the user can review and leave comments on.
 
 **Input Schema** (Zod):
 
 ```typescript
 {
-  filePath: string,          // Required: Target path for accepted content
-  content: string,           // Required: File content to review
-  contentType?: string       // Optional: MIME type (default: "text/plain")
+  filePath: string,          // Required: Path where content should be saved if accepted
+  content: string,           // Required: The actual text content to be reviewed
+  contentType?: string       // Optional: MIME type (text/plain by default). Options: text/plain, text/markdown, text/x-markdown, text/html, application/json
 }
 ```
 
 **Supported Content Types**:
-- `text/plain`: Plain text display with syntax highlighting
-- `text/markdown`, `text/x-markdown`: Markdown rendering with marked.js
-- `text/html`: HTML content in iframe
-- `application/json`: JSON with syntax highlighting
+
+- `text/plain`: Plain text display with HTML escaping for display
+- `text/markdown`, `text/x-markdown`: Markdown rendering using marked.js library
+- `text/html`: Raw HTML content rendered in an iframe
+- `application/json`: JSON formatted with syntax highlighting
 
 **Example Usage**:
 
@@ -189,7 +182,8 @@ const result = await getFileFeedback.execute({
 }, agent);
 ```
 
-**Response Format**: 
+**Response Format**:
+
 ```typescript
 {
   status: "accepted" | "rejected",
@@ -200,24 +194,30 @@ const result = await getFileFeedback.execute({
 ```
 
 **Implementation Details**:
-- Creates temporary directory for preview
-- Spins up Express server for browser interface
-- Automatically opens browser (falls back to URL logging)
-- Handles user acceptance/rejection with comments
-- Cleans up temporary files automatically
 
-### react-feedback Tool
+- Creates temporary directory with prefix `file-feedback-`
+- Generates HTML review UI with Accept/Reject buttons and comment textarea
+- Starts Express server to serve the review UI
+- Automatically launches browser to show the review page
+- Uses FileSystemService for saving accepted/rejected content
+- If rejected, saves content with `.rejectedyyyyMMdd-HHmmss.extension` suffix
+- Automatically cleans up temporary files and stops the server
+- For Markdown content, uses marked.js library for HTML conversion
+- For HTML content, renders in iframe for proper isolation
+- Uses safe HTML escaping for plain text and JSON content
+
+#### Feedback/react-feedback
 
 **Tool Name**: `feedback_react-feedback`
 
-**Purpose**: Bundle and preview React components in browsers for visual feedback.
+**Description**: This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result. Bundles React components and renders them in the browser for visual review.
 
 **Input Schema** (Zod):
 
 ```typescript
 {
-  code: string,              // Required: JSX/TSX code to preview
-  file?: string              // Optional: Target file path (auto-generated if not provided)
+  code: string,              // Required: Complete source code of React component to preview
+  file?: string              // Optional: Filename/path of the React component (defaults to auto-generated timestamp)
 }
 ```
 
@@ -245,31 +245,47 @@ const result = await reactFeedback.execute({
 
 **Response Format**:
 
+Accepted:
 ```typescript
 {
-  status: "accept" | "reject" | "rejected",
-  comment?: string           // User's optional comment
+  status: "accept",
+  comment?: string
+}
+```
+
+Rejected:
+```typescript
+{
+  status: "reject" | "rejected",
+  comment?: string
 }
 ```
 
 **Implementation Details**:
-- Uses esbuild for bundling React components
-- Bundles with external React CDN imports
-- Creates Express server for preview
-- Supports JSX/TSX with automatic JSX transformation
-- Handles global React imports properly
+
+- Creates temporary directory with prefix `react-preview-`
+- Bundles React component code using esbuild
+- Configures esbuild with external globals: react, react-dom, react/jsx-runtime
+- Uses JSX automatic transformation
+- Creates HTML wrapper that loads from CDN: React 18 development builds
+- Starts Express server to serve the bundled component
+- Automatically launches browser to show the preview
+- Uses FileSystemService for saving accepted/rejected files
+- If rejected, saves content with `.rejectedyyyyMMdd-HH:mm.extension` suffix
+- Automatically cleans up temporary files and stops the server
+- Uses JSX automatic mode for proper JSX transformation
+- Supports React 18 with direct DOM rendering
 
 ## Configuration
 
 ### Plugin Configuration
 
-The package automatically registers with Token Ring applications:
+The package automatically registers with Token Ring applications and requires no additional configuration:
 
 ```typescript
 import { TokenRingPlugin } from "@tokenring-ai/app";
-import { ChatService } from "@tokenring-ai/chat";
 import { z } from "zod";
-import packageJSON from './package.json' with { type: 'json' };
+import packageJSON from './package.json' with {type: 'json'};
 import tools from "./tools.ts";
 
 const packageConfigSchema = z.object({});
@@ -279,6 +295,7 @@ export default {
   version: packageJSON.version,
   description: packageJSON.description,
   install(app, config) {
+    if (!config) return;
     app.waitForService(ChatService, chatService =>
       chatService.addTools(packageJSON.name, tools)
     );
@@ -287,137 +304,146 @@ export default {
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;
 ```
 
-### TypeScript Configuration
+### Required Services
 
-The package uses TypeScript with the following settings:
-- Target: ES2022
-- Module: NodeNext
-- Strict mode enabled
-- ES module resolution
+The package requires the following services to be registered:
+
+- **ChatService**: Required for tool registration
+- **FileSystemService**: Required by getFileFeedback and reactFeedback tools for file operations
+- **Agent**: Required for logging and service access
+
+## Dependencies
+
+### Runtime Dependencies
+
+- `zod@catalog:` - Schema validation
+- `esbuild@^0.27.2` - React component bundling
+- `esbuild-plugin-external-global@^1.0.1` - External global plugin for esbuild
+- `express@^5.2.1` - Web server for preview
+- `marked@^17.0.1` - Markdown rendering
+- `date-fns@^4.1.0` - Date formatting
+- `date-fns-tz@^3.2.0` - Time zone support (available but not currently used)
+- `open@^11.0.0` - Browser launcher
+- `react@catalog:` - React library (pinned to specific version)
+- `react-dom@catalog:` - React DOM library (pinned to specific version)
 
 ### Development Dependencies
+
 - `typescript@catalog:` - TypeScript compiler
 - `@types/express@^5.0.6` - Express type definitions
 - `vitest@catalog:` - Testing framework
+
+### Token Ring Dependencies
+
+- `@tokenring-ai/app@0.2.0` - Base application framework
+- `@tokenring-ai/chat@0.2.0` - Chat service
+- `@tokenring-ai/agent@0.2.0` - Agent system and question schema
+- `@tokenring-ai/filesystem@0.2.0` - File system service
 
 ## Error Handling
 
 All tools follow consistent error handling patterns:
 
+### Parameter Validation
+
 ```typescript
-// Parameter validation with Zod schemas
-if (!question) {
-  throw new Error(`[feedback_askHuman] Question is required.`);
+// askQuestions: Validates message and questions are provided
+if (!message || !questions) {
+  throw new Error(`[ask_questions] message and questions are required parameters.`);
 }
 
-// Proper error messages
+// getFileFeedback: Validates filePath and content are provided
 if (!filePath || !content) {
   throw new Error(
     `[feedback_getFileFeedback] filePath and content are required parameters.`
   );
 }
 
-// Agent integration with error propagation
-try {
-  const result = await tool.execute(params, agent);
-  return result;
-} catch (error) {
-  agent.errorMessage(`[tool-name] Operation failed:`, error);
-  throw error;
+// reactFeedback: Validates code is provided
+if (!code) {
+  throw new Error(`[feedback_react-feedback] code is required parameter.`);
 }
 ```
+
+### Graceful Failure
+
+- Invalid input parameters: Throws errors with descriptive messages
+- File system operations: Handle errors with logging without crashing
+- Server startup: Log errors and fall back to URL reporting
+- Cleanup operations: Caught errors are logged but don't stop execution
 
 ### Error Types
 
 1. **Validation Errors**: Missing required parameters or invalid input types
 2. **File System Errors**: File I/O operations, permissions, path validation
 3. **Network Errors**: Server startup, browser launch, HTTP requests
-4. **Build Errors**: React component bundling failures
+4. **Build Errors**: React component bundling failures (esbuild errors)
 5. **Agent Errors**: Service integration issues
+
+## Development
+
+### Building
+
+```bash
+# Build the package TypeScript files (no Emit)
+bun run build
+```
+
+### Testing
+
+```bash
+# Run tests
+bun run test
+
+# Run tests in watch mode
+bun run test:watch
+
+# Run tests with coverage
+bun run test:coverage
+```
+
+### Testing Structure
+
+- Uses vitest for testing
+- Tests are located in `**/*.test.ts` files
+- Node environment for test execution
+- Isolated test runs with globals enabled
 
 ## Integration Patterns
 
-### Agent Integration
-
-Tools integrate with agents through the service system:
+### Service Access
 
 ```typescript
 // Access required services
 const fileSystem = agent.requireServiceByType(FileSystemService);
 
-// Use agent logging methods
+// Use agent logging for tool execution
 agent.infoMessage(`[tool-name] Operation started`);
+agent.infoMessage(`[tool-name] File review server running at ${url}`);
 agent.errorMessage(`[tool-name] Operation failed:`, error);
 ```
 
-### State Management
+### Tool Registration
 
-Tools maintain minimal state:
-- Temporary files are cleaned up automatically
-- No persistent state between executions
-- Browser sessions are ephemeral
+Tools are registered via the plugin system:
 
-## Limitations and Considerations
-
-### Browser Requirements
-- Browser-based tools require a graphical environment
-- Open command may fail in headless environments (falls back to URL logging)
-
-### Security Considerations
-- Temporary files are automatically cleaned up
-- Preview servers run on localhost only
-- No persistent storage of user data
-
-### Performance Considerations
-- React bundling uses esbuild (fast but limited features)
-- Browser previews use development CDN scripts
-- Not suitable for production React applications
-
-### Content Support
-- Focus on text-based content and React components
-- Binary files not handled
-- File size limits depend on browser and system constraints
-
-### Network Requirements
-- Browser tools require network access for preview servers
-- React previews use external CDN resources
-- Local server communication only
-
-## Development
-
-### Building and Testing
-
-```bash
-# Build the package
-bun run build
-
-# Run tests
-bun run test
-
-# Run tests with coverage
-bun run test:coverage
-
-# Run tests in watch mode
-bun run test:watch
+```typescript
+app.waitForService(ChatService, chatService =>
+  chatService.addTools(packageName, tools)
+);
 ```
 
-### Development Guidelines
+Where `tools` exports individual tool definitions with the proper structure:
 
-- Follow TypeScript strict mode
-- Update Zod schemas for new parameters
-- Ensure proper error handling and logging
-- Test in various environments
-- Maintain compatibility with Token Ring AI ecosystem
-- Use proper tool naming conventions (`feedback_toolName`)
-- Implement proper cleanup for temporary resources
-
-### Code Style
-
-- Consistent tool naming: `feedback_toolName`
-- Proper error messages with tool prefixes
-- Async/await patterns throughout
-- Proper TypeScript types and Zod validation
-- Agent integration via service requirements
+```typescript
+export default {
+  name: "tool_name",
+  displayName: "Category/name",
+  description: "Tool description",
+  inputSchema: z.object({ ... }),
+  execute: async (params, agent) => { ... }
+};
+```
 
 ## License
 
