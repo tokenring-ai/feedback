@@ -1,6 +1,6 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TextQuestionSchema, type TreeSelectQuestionSchema} from "@tokenring-ai/agent/question";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {TokenRingToolDefinition, type TokenRingToolTextResult} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 
 /**
@@ -34,7 +34,7 @@ const inputSchema = z.object({
 async function execute(
   { message, questions}: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<string> {
+): Promise<TokenRingToolTextResult> {
   const questionItems = new Map<string,z.input<typeof TreeSelectQuestionSchema> | z.input<typeof TextQuestionSchema>>()
 
   for (const question of questions) {
@@ -111,6 +111,7 @@ async function execute(
   return `The user has provided the following responses:\n${
     Object.entries(completeResults).map(([question, answer]) => `${question}\n${answer}`).join('\n\n')
   }`;
+
 }
 
 export default {

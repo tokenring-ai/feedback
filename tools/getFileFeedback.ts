@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {TokenRingToolDefinition, type TokenRingToolJSONResult} from "@tokenring-ai/chat/schema";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import {format} from "date-fns";
 import express, {type Request, type Response} from "express";
@@ -43,9 +43,9 @@ export interface GetFileFeedbackResult {
 }
 
 async function execute(
-  {filePath, content, contentType = "text/plain"}: z.infer<typeof inputSchema>,
+  {filePath, content, contentType = "text/plain"}: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<string | GetFileFeedbackResult> {
+): Promise<TokenRingToolJSONResult<GetFileFeedbackResult>> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Validate required parameters – throw error instead of returning
@@ -117,10 +117,13 @@ async function execute(
   stop();
 
   return {
-    status: result.accepted ? "accepted" : "rejected",
-    comment: result.comment,
-    filePath: result.accepted ? filePath : undefined,
-    rejectedFilePath: result.accepted ? undefined : filePath,
+    type: "json",
+    data: {
+      status: result.accepted ? "accepted" : "rejected",
+      comment: result.comment,
+      filePath: result.accepted ? filePath : undefined,
+      rejectedFilePath: result.accepted ? undefined : filePath,
+    }
   };
 }
 
