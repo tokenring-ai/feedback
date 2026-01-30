@@ -5,7 +5,7 @@
   "dependencies": {
     "@tokenring-ai/app": "0.2.0",
     "@tokenring-ai/chat": "0.2.0",
-    "zod": "catalog:",
+    "zod": "^4.3.6",
     "@tokenring-ai/agent": "0.2.0",
     "@tokenring-ai/filesystem": "0.2.0",
     "esbuild": "^0.27.2",
@@ -15,13 +15,13 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "open": "^11.0.0",
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
-    "typescript": "catalog:",
+    "typescript": "^5.9.3",
     "@types/express": "^5.0.6",
-    "vitest": "catalog:"
+    "vitest": "^4.0.18"
   },
   "exports": {
     ".": "./index.ts",
