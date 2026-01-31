@@ -24,7 +24,7 @@ bun install @tokenring-ai/feedback
 
 ```
 pkg/feedback/
-├── index.ts                  # Main entry point
+├── index.ts                  # Main entry point (currently empty)
 ├── plugin.ts                 # TokenRing plugin integration
 ├── tools.ts                  # Tool exports aggregator
 ├── tools/                    # Core feedback tools
