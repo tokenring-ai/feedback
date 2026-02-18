@@ -276,14 +276,15 @@ Rejected:
 - Uses JSX automatic mode for proper JSX transformation
 - Supports React 18 with direct DOM rendering
 
-## Configuration
+## Plugin Configuration
 
-### Plugin Configuration
+### Plugin Registration
 
-The package automatically registers with Token Ring applications and requires no additional configuration:
+The package automatically registers with Token Ring applications via the plugin system. The plugin implementation is in `plugin.ts` and registers all tools with the ChatService.
 
 ```typescript
 import { TokenRingPlugin } from "@tokenring-ai/app";
+import { ChatService } from "@tokenring-ai/chat";
 import { z } from "zod";
 import packageJSON from './package.json' with {type: 'json'};
 import tools from "./tools.ts";
@@ -295,13 +296,20 @@ export default {
   version: packageJSON.version,
   description: packageJSON.description,
   install(app, config) {
-    if (!config) return;
     app.waitForService(ChatService, chatService =>
-      chatService.addTools(packageJSON.name, tools)
+      chatService.addTools(tools)
     );
   },
   config: packageConfigSchema
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;
+```
+
+### Configuration Schema
+
+The package uses a minimal configuration schema that accepts no custom configuration options:
+
+```typescript
+const packageConfigSchema = z.object({});
 ```
 
 ### Required Services
@@ -312,26 +320,63 @@ The package requires the following services to be registered:
 - **FileSystemService**: Required by getFileFeedback and reactFeedback tools for file operations
 - **Agent**: Required for logging and service access
 
+## Tools
+
+### Tool Registration
+
+Tools are registered via the plugin system when the package is installed:
+
+```typescript
+app.waitForService(ChatService, chatService =>
+  chatService.addTools(tools)
+);
+```
+
+Each tool follows the TokenRingToolDefinition pattern with:
+- **name**: Internal tool name
+- **displayName**: Formatted as "Category/ToolName"
+- **description**: Detailed explanation of functionality
+- **inputSchema**: Zod schema for validation
+- **execute**: Async function that performs the tool's action
+
+### Tool Interface
+
+All tools export the following structure:
+
+```typescript
+export default {
+  name: "tool_name",
+  displayName: "Category/ToolName",
+  description: "Tool description",
+  inputSchema: z.object({ ... }),
+  execute: async (params, agent) => { ... }
+} satisfies TokenRingToolDefinition<typeof inputSchema>;
+```
+
+## Agent Configuration
+
+The feedback package integrates with the Token Ring agent system through its tools. The tools expect an Agent instance to access services, logging, and human interaction capabilities.
+
 ## Dependencies
 
 ### Runtime Dependencies
 
-- `zod@catalog:` - Schema validation
-- `esbuild@^0.27.2` - React component bundling
+- `zod@^4.3.6` - Schema validation
+- `esbuild@^0.27.3` - React component bundling
 - `esbuild-plugin-external-global@^1.0.1` - External global plugin for esbuild
 - `express@^5.2.1` - Web server for preview
-- `marked@^17.0.1` - Markdown rendering
+- `marked@^17.0.3` - Markdown rendering
 - `date-fns@^4.1.0` - Date formatting
-- `date-fns-tz@^3.2.0` - Time zone support (available but not currently used)
+- `date-fns-tz@^3.2.0` - Time zone support
 - `open@^11.0.0` - Browser launcher
-- `react@catalog:` - React library (pinned to specific version)
-- `react-dom@catalog:` - React DOM library (pinned to specific version)
+- `react@^19.2.4` - React library
+- `react-dom@^19.2.4` - React DOM library
 
 ### Development Dependencies
 
-- `typescript@catalog:` - TypeScript compiler
+- `typescript@^5.9.3` - TypeScript compiler
 - `@types/express@^5.0.6` - Express type definitions
-- `vitest@catalog:` - Testing framework
+- `vitest@^4.0.18` - Testing framework
 
 ### Token Ring Dependencies
 
@@ -429,7 +474,7 @@ Tools are registered via the plugin system:
 
 ```typescript
 app.waitForService(ChatService, chatService =>
-  chatService.addTools(packageName, tools)
+  chatService.addTools(tools)
 );
 ```
 
@@ -447,4 +492,4 @@ export default {
 
 ## License
 
-MIT License - see [LICENSE](./LICENSE) file for details.
+MIT License - see LICENSE file for details.
