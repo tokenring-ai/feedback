@@ -81,6 +81,10 @@ async function execute(
       }
     });
 
+    if (result === null) {
+      throw new Error("The user did not respond to the question prompt. Stop what you are doing. Do not call any more tools until the user gives you further instructions.");
+    }
+
     for (let [question, answer] of Object.entries(result.Questions)) {
       if (answer === null) {
         completeResults[question] = "The user did not provide an answer, use your own judgement";
