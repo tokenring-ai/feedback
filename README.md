@@ -2,13 +2,13 @@
 
 ## Overview
 
-The `@tokenring-ai/feedback` package provides essential tools for human-in-the-loop interactions in AI-driven workflows. It allows AI agents to pause execution, present information to users, and collect feedback through two main mechanisms: interactive chat-based questioning and browser-based file and component reviews.
+The `@tokenring-ai/feedback` package provides essential tools for human-in-the-loop interactions in AI-driven workflows. It allows AI agents to pause execution, present information to users, and collect feedback through three main mechanisms: interactive chat-based questioning, browser-based file content review, and React component previews.
 
 ## Key Features
 
-- **Interactive Questioning**: Ask humans multiple questions via chat with support for text responses or multiple-choice options
+- **Interactive Questioning**: Ask humans multiple questions via chat with support for text responses or multiple-choice options using structured form inputs
 - **File Content Review**: Display file contents (text, Markdown, HTML, JSON) in browser UIs for approval/rejection with comments
-- **React Component Preview**: Bundle and preview React components in browsers for visual feedback
+- **React Component Preview**: Bundle and preview React components in browsers for visual feedback and approval
 - **Seamless Integration**: Automatically registers with Token Ring applications via plugin system
 - **Auto-Cleanup**: Automatic cleanup of temporary files and directories
 - **Type-Safe**: Full TypeScript support with Zod schema validation
@@ -17,7 +17,7 @@ The `@tokenring-ai/feedback` package provides essential tools for human-in-the-l
 ## Installation
 
 ```bash
-bun install @tokenring-ai/feedback
+bun add @tokenring-ai/feedback
 ```
 
 ## Package Structure
@@ -53,9 +53,9 @@ app.install(feedbackPlugin);
 // Use: Feedback/askQuestions, Feedback/getFileFeedback, Feedback/react-feedback
 ```
 
-### Tools
+## Tools
 
-#### Feedback/askQuestions
+### Feedback/askQuestions
 
 **Tool Name**: `ask_questions`
 
@@ -64,18 +64,28 @@ app.install(feedbackPlugin);
 **Input Schema** (Zod):
 
 ```typescript
-{
-  message: string,                           // Required: Description of the problem or uncertainty
-  questions: Array<{
-    question: string,                        // Required: Question to ask the user
-    choices: string[]                       // Required: Suggested choices for the user to select from
-  }>
-}
+z.object({
+  message: z.string().describe("A free-form, paragraph sized message, explaining the problem you are facing, or the uncertainty you have about the task."),
+  questions: z.array(z.object({
+    question: z.string().describe("A question to ask the human, such as something to clarify, or to get additional information on."),
+    choices: z.array(z.string()).describe("Suggested choices for the human to select from. The human can choose from any of these options or provide their own response.")
+  }))
+})
 ```
+
+**Input Parameters**:
+
+- **message** (string): Required - Free-form paragraph explaining the problem or uncertainty
+- **questions** (array): Required - Array of question objects
+  - **question** (string): Required - The specific question to ask
+  - **choices** (string[]): Required - Suggested choices for the user to select from (can be empty for freeform responses)
 
 **Example Usage**:
 
 ```typescript
+import askQuestions from "@tokenring-ai/feedback/tools/askQuestions";
+
+// Single question with choices
 const result = await askQuestions.execute({
   message: "I'm unsure about the best approach for this feature.",
   questions: [
@@ -115,7 +125,7 @@ const result = await askQuestions.execute({
 
 **Response Format**:
 
-Returns a string with the user's responses formatted as:
+Returns a formatted string with the user's responses:
 
 ```
 The user has provided the following responses:
@@ -127,14 +137,28 @@ Question 2
 Answer 2
 ```
 
+**Implementation Details**:
+
+- Form-based questions using agent's `askQuestion` API
+- Supports both `treeSelect` (for choices) and `text` (for freeform) input types
+- Users can select from choices or choose "Other (Will open a text box for a freeform answer)" for freeform input
+- Empty choices array creates text input for freeform responses
+- Questions are collected iteratively until all are answered
+- If a user doesn't provide an answer, returns "The user did not provide an answer, use your own judgement"
+- If user doesn't respond at all, throws error: "The user did not respond to the question prompt. Stop what you are doing. Do not call any more tools until the user gives you further instructions."
+- Question items are dynamically transformed: choices → treeSelect, no choices → text
+
 **Behavior**:
+
 - If choices are provided, users can select one option or choose "Other" for freeform input
 - If no choices are provided, users can type freeform responses
 - The tool continues asking questions until all are answered
 - If a user doesn't provide an answer, the agent uses its own judgment
-- Uses agent's askQuestion API with form-based questions and treeSelect/text fields
+- Uses agent's `askQuestion` API with form-based questions and treeSelect/text fields
 
-#### Feedback/getFileFeedback
+---
+
+### Feedback/getFileFeedback
 
 **Tool Name**: `feedback_getFileFeedback`
 
@@ -143,23 +167,37 @@ Answer 2
 **Input Schema** (Zod):
 
 ```typescript
-{
-  filePath: string,          // Required: Path where content should be saved if accepted
-  content: string,           // Required: The actual text content to be reviewed
-  contentType?: string       // Optional: MIME type (text/plain by default). Options: text/plain, text/markdown, text/x-markdown, text/html, application/json
-}
+z.object({
+  filePath: z.string().describe("The path where the file content should be saved if accepted."),
+  content: z.string().describe("The actual text content to be reviewed."),
+  contentType: z.string()
+    .describe("Optional. The MIME type of the content (e.g., 'text/plain', 'text/html', 'application/json', 'text/markdown', 'text/x-markdown'). Defaults to 'text/plain'. If 'text/markdown' or 'text/x-markdown', content is rendered as HTML for review. Used for browser rendering.")
+    .default("text/plain")
+}).strict()
 ```
+
+**Input Parameters**:
+
+- **filePath** (string): Required - Path where content should be saved if accepted
+- **content** (string): Required - The actual text content to be reviewed
+- **contentType** (string, optional): MIME type for content rendering. Defaults to `text/plain`. Options:
+  - `text/plain`: Plain text with HTML escaping
+  - `text/markdown`, `text/x-markdown`: Markdown rendered to HTML using marked.js
+  - `text/html`: Raw HTML content rendered in iframe
+  - `application/json`: JSON formatted with syntax highlighting
 
 **Supported Content Types**:
 
-- `text/plain`: Plain text display with HTML escaping for display
+- `text/plain`: Plain text display with HTML escaping
 - `text/markdown`, `text/x-markdown`: Markdown rendering using marked.js library
-- `text/html`: Raw HTML content rendered in an iframe
+- `text/html`: Raw HTML content rendered in iframe
 - `application/json`: JSON formatted with syntax highlighting
 
 **Example Usage**:
 
 ```typescript
+import getFileFeedback from "@tokenring-ai/feedback/tools/getFileFeedback";
+
 // Review Markdown content
 const result = await getFileFeedback.execute({
   filePath: "docs/sample.md",
@@ -180,50 +218,94 @@ const result = await getFileFeedback.execute({
   content: "<h1>Welcome</h1><p>This is HTML content.</p>",
   contentType: "text/html"
 }, agent);
+
+// Review plain text
+const result = await getFileFeedback.execute({
+  filePath: "README.txt",
+  content: "This is plain text content.",
+  contentType: "text/plain"
+}, agent);
 ```
 
 **Response Format**:
 
 ```typescript
 {
-  status: "accepted" | "rejected",
-  comment?: string,          // User's comment if provided
-  filePath?: string,         // Path where content was saved (if accepted)
-  rejectedFilePath?: string  // Path where content was saved (if rejected)
+  type: "json",
+  data: {
+    status: "accepted" | "rejected",
+    comment?: string,         // User's comment if provided
+    filePath?: string,        // Path where content was saved (if accepted)
+    rejectedFilePath?: string // Path where content was saved (if rejected)
+  }
 }
 ```
 
 **Implementation Details**:
 
-- Creates temporary directory with prefix `file-feedback-`
-- Generates HTML review UI with Accept/Reject buttons and comment textarea
-- Starts Express server to serve the review UI
-- Automatically launches browser to show the review page
-- Uses FileSystemService for saving accepted/rejected content
-- If rejected, saves content with `.rejectedyyyyMMdd-HHmmss.extension` suffix
-- Automatically cleans up temporary files and stops the server
-- For Markdown content, uses marked.js library for HTML conversion
-- For HTML content, renders in iframe for proper isolation
-- Uses safe HTML escaping for plain text and JSON content
+1. **Temporary Directory**: Creates temp directory with prefix `file-feedback-`
+2. **Review UI Generation**: Generates HTML review page with:
+   - Accept/Reject buttons at top of page
+   - Comment textarea for user feedback
+   - Content display area with appropriate rendering
+3. **Express Server**: Starts HTTP server to serve the review UI
+4. **Browser Launch**: Automatically launches browser using `open` package
+5. **Content Rendering**:
+   - Markdown: Uses `marked.js` library for HTML conversion with CSS styling
+   - HTML: Renders in iframe for proper isolation
+   - JSON: Pre-formatted display with HTML escaping
+   - Plain text: Safe HTML escaping for display
+6. **File Operations**:
+   - If accepted: Saves content to specified `filePath` using FileSystemService
+   - If rejected: Saves content with `.rejectedyyyyMMdd-HHmmss` suffix (e.g., `file.rejected20240115-143022.txt`)
+7. **Cleanup**: Automatically removes temporary directory and stops server
+8. **Error Handling**: Caught errors during cleanup are logged but don't stop execution
 
-#### Feedback/react-feedback
+**Response Handling**:
+
+```typescript
+const result = await getFileFeedback.execute({...}, agent);
+
+if (result.data.status === "accepted") {
+  console.log("Content accepted:", result.data.filePath);
+  if (result.data.comment) {
+    console.log("User comment:", result.data.comment);
+  }
+} else {
+  console.log("Content rejected:", result.data.rejectedFilePath);
+  if (result.data.comment) {
+    console.log("User comment:", result.data.comment);
+  }
+}
+```
+
+---
+
+### Feedback/react-feedback
 
 **Tool Name**: `feedback_react-feedback`
 
-**Description**: This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result. Bundles React components and renders them in the browser for visual review.
+**Description**: This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in JSX, to be rendered via React), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result. Bundles React components and renders them in the browser for visual review.
 
 **Input Schema** (Zod):
 
 ```typescript
-{
-  code: string,              // Required: Complete source code of React component to preview
-  file?: string              // Optional: Filename/path of the React component (defaults to auto-generated timestamp)
-}
+z.object({
+  code: z.string().describe("The complete source code of the React component to be previewed. This should be valid JSX/TSX that can be bundled and rendered in the browser."),
+  file: z.string().optional().describe("The filename/path of the React component to be previewed")
+}).strict()
 ```
+
+**Input Parameters**:
+
+- **code** (string): Required - Complete source code of React component to preview (valid JSX/TSX)
+- **file** (string, optional): Filename/path of the React component. Defaults to auto-generated timestamped name: `React-Component-Preview-{ISO timestamp}.tsx`
 
 **Example Usage**:
 
 ```typescript
+import reactFeedback from "@tokenring-ai/feedback/tools/react-feedback";
+
 const jsxCode = `
 import React from 'react';
 
@@ -245,36 +327,103 @@ const result = await reactFeedback.execute({
 
 **Response Format**:
 
-Accepted:
 ```typescript
+// Accepted response
 {
-  status: "accept",
-  comment?: string
+  type: "json",
+  data: {
+    status: "accept",
+    comment?: string
+  }
 }
-```
 
-Rejected:
-```typescript
+// Rejected response
 {
-  status: "reject" | "rejected",
-  comment?: string
+  type: "json",
+  data: {
+    status: "reject" | "rejected",
+    comment?: string
+  }
 }
 ```
 
 **Implementation Details**:
 
-- Creates temporary directory with prefix `react-preview-`
-- Bundles React component code using esbuild
-- Configures esbuild with external globals: react, react-dom, react/jsx-runtime
-- Uses JSX automatic transformation
-- Creates HTML wrapper that loads from CDN: React 18 development builds
-- Starts Express server to serve the bundled component
-- Automatically launches browser to show the preview
-- Uses FileSystemService for saving accepted/rejected files
-- If rejected, saves content with `.rejectedyyyyMMdd-HH:mm.extension` suffix
-- Automatically cleans up temporary files and stops the server
-- Uses JSX automatic mode for proper JSX transformation
-- Supports React 18 with direct DOM rendering
+1. **Temporary Directory**: Creates temp directory with prefix `react-preview-`
+2. **File Creation**: Writes component code to temp directory with specified filename or timestamped name
+3. **Component Bundling**: Uses esbuild to bundle React component:
+   - Entry point: Component file in temp directory
+   - Output: `bundle.ts` in temp directory
+   - JSX transformation: Automatic mode
+   - Platform: Browser
+   - External dependencies: `react`, `react-dom`, `react/jsx-runtime`
+   - Global name: `window.App`
+   - Plugin: `esbuild-plugin-external-global` for external globals
+4. **HTML Wrapper**: Generates HTML page that:
+   - Loads React 18 development builds from CDN (`https://unpkg.com/react@18/umd/react.development.ts`)
+   - Loads React DOM 18 from CDN (`https://unpkg.com/react-dom@18/umd/react-dom.development.ts`)
+   - Defines `window.JSX` with `React.createElement` for JSX runtime
+   - Loads bundled component
+   - Renders component using `ReactDOM.createRoot`
+   - Includes styled overlay with Accept/Reject buttons and comment textarea
+5. **Review UI Features**:
+   - Fixed overlay at top with Accept/Reject buttons
+   - Comment textarea (5 rows height)
+   - Styled with yellow theme for submit button
+   - Alert notification on submission
+6. **Express Server**: Starts HTTP server to serve the preview
+7. **Browser Launch**: Automatically opens browser to preview page
+8. **File Operations**:
+   - If accepted: Saves component code to specified `file` path
+   - If rejected: Saves component with `.rejectedyyyyMMdd-HH:mm` suffix (e.g., `component.rejected20240115-14:30.tsx`)
+9. **Cleanup**: Removes temporary directory and stops server
+10. **Error Handling**: Throws error if `code` parameter is missing
+
+**Bundling Configuration**:
+
+```typescript
+esbuild.build({
+  entryPoints: [jsxPath],
+  outfile: bundlePath,
+  bundle: true,
+  jsx: "automatic",
+  platform: "browser",
+  external: ["react", "react-dom", "react/jsx-runtime"],
+  globalName: "window.App",
+  plugins: [
+    externalGlobalPlugin({
+      react: "window.React",
+      "react-dom": "window.ReactDOM",
+      "react/jsx-runtime": "window.JSX",
+      jQuery: "$"
+    })
+  ]
+});
+```
+
+**CDN Resources**:
+
+- React 18 development: `https://unpkg.com/react@18/umd/react.development.ts`
+- React DOM 18 development: `https://unpkg.com/react-dom@18/umd/react-dom.development.ts`
+- JSX runtime: `window.JSX = { "jsx": React.createElement, "jsxs": React.createElement }`
+
+**Response Handling**:
+
+```typescript
+const result = await reactFeedback.execute({...}, agent);
+
+if (result.data.status === "accept") {
+  console.log("Component accepted");
+  if (result.data.comment) {
+    console.log("User comment:", result.data.comment);
+  }
+} else {
+  console.log("Component rejected");
+  if (result.data.comment) {
+    console.log("User comment:", result.data.comment);
+  }
+}
+```
 
 ## Plugin Configuration
 
@@ -317,10 +466,10 @@ const packageConfigSchema = z.object({});
 The package requires the following services to be registered:
 
 - **ChatService**: Required for tool registration
-- **FileSystemService**: Required by getFileFeedback and reactFeedback tools for file operations
+- **FileSystemService**: Required by `getFileFeedback` and `reactFeedback` tools for file operations
 - **Agent**: Required for logging and service access
 
-## Tools
+## Tools Export
 
 ### Tool Registration
 
@@ -332,7 +481,21 @@ app.waitForService(ChatService, chatService =>
 );
 ```
 
-Each tool follows the TokenRingToolDefinition pattern with:
+Where `tools` is exported from `tools.ts`:
+
+```typescript
+import askQuestions from "./tools/askQuestions.ts";
+import getFileFeedback from "./tools/getFileFeedback.js";
+import reactFeedback from "./tools/react-feedback.js";
+
+export default {
+  askQuestions,
+  getFileFeedback,
+  reactFeedback,
+};
+```
+
+Each tool follows the `TokenRingToolDefinition` pattern with:
 - **name**: Internal tool name
 - **displayName**: Formatted as "Category/ToolName"
 - **description**: Detailed explanation of functionality
@@ -355,12 +518,44 @@ export default {
 
 ## Agent Configuration
 
-The feedback package integrates with the Token Ring agent system through its tools. The tools expect an Agent instance to access services, logging, and human interaction capabilities.
+The feedback package integrates with the Token Ring agent system through its tools. The tools expect an `Agent` instance to access services, logging, and human interaction capabilities.
+
+### Required Services
+
+The following services must be available for the tools to function:
+
+- **ChatService**: Required for tool registration (handled by plugin)
+- **FileSystemService**: Required by `getFileFeedback` and `reactFeedback` for file operations
+- **Agent**: Required for logging, service access, and human interaction via `askQuestion` API
+
+### Service Access Pattern
+
+```typescript
+import Agent from "@tokenring-ai/agent/Agent";
+import { FileSystemService } from "@tokenring-ai/filesystem";
+
+async function execute(params: unknown, agent: Agent) {
+  // Access required services
+  const fileSystem = agent.requireServiceByType(FileSystemService);
+  
+  // Use agent logging
+  agent.infoMessage(`[tool-name] Operation started`);
+  agent.infoMessage(`[tool-name] File review server running at ${url}`);
+  agent.errorMessage(`[tool-name] Operation failed:`, error);
+  
+  // Use agent question API
+  const response = await agent.askQuestion({...});
+}
+```
 
 ## Dependencies
 
 ### Runtime Dependencies
 
+- `@tokenring-ai/app@0.2.0` - Base application framework
+- `@tokenring-ai/chat@0.2.0` - Chat service
+- `@tokenring-ai/agent@0.2.0` - Agent system and question schema
+- `@tokenring-ai/filesystem@0.2.0` - File system service
 - `zod@^4.3.6` - Schema validation
 - `esbuild@^0.27.3` - React component bundling
 - `esbuild-plugin-external-global@^1.0.1` - External global plugin for esbuild
@@ -377,13 +572,6 @@ The feedback package integrates with the Token Ring agent system through its too
 - `typescript@^5.9.3` - TypeScript compiler
 - `@types/express@^5.0.6` - Express type definitions
 - `vitest@^4.0.18` - Testing framework
-
-### Token Ring Dependencies
-
-- `@tokenring-ai/app@0.2.0` - Base application framework
-- `@tokenring-ai/chat@0.2.0` - Chat service
-- `@tokenring-ai/agent@0.2.0` - Agent system and question schema
-- `@tokenring-ai/filesystem@0.2.0` - File system service
 
 ## Error Handling
 
@@ -449,7 +637,7 @@ bun run test:coverage
 
 ### Testing Structure
 
-- Uses vitest for testing
+- Uses `vitest` for testing
 - Tests are located in `**/*.test.ts` files
 - Node environment for test execution
 - Isolated test runs with globals enabled
