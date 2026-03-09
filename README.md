@@ -156,6 +156,12 @@ Answer 2
 - If a user doesn't provide an answer, the agent uses its own judgment
 - Uses agent's `askQuestion` API with form-based questions and treeSelect/text fields
 
+**Error Handling**:
+
+- Throws error if user doesn't respond to question prompt at all
+- Returns default message if user doesn't provide answer to specific question
+- Validates that at least one question is provided
+
 ---
 
 ### Feedback/getFileFeedback
@@ -183,15 +189,15 @@ z.object({
 - **contentType** (string, optional): MIME type for content rendering. Defaults to `text/plain`. Options:
   - `text/plain`: Plain text with HTML escaping
   - `text/markdown`, `text/x-markdown`: Markdown rendered to HTML using marked.js
-  - `text/html`: Raw HTML content rendered in iframe
+  - `text/html`: Raw HTML content rendered in iframe (saved to separate file)
   - `application/json`: JSON formatted with syntax highlighting
 
 **Supported Content Types**:
 
 - `text/plain`: Plain text display with HTML escaping
 - `text/markdown`, `text/x-markdown`: Markdown rendering using marked.js library
-- `text/html`: Raw HTML content rendered in iframe
-- `application/json`: JSON formatted with syntax highlighting
+- `text/html`: Raw HTML content rendered in iframe (content saved to `user_content.html`)
+- `application/json`: JSON formatted with HTML escaping in pre tag
 
 **Example Usage**:
 
@@ -236,7 +242,7 @@ const result = await getFileFeedback.execute({
     status: "accepted" | "rejected",
     comment?: string,         // User's comment if provided
     filePath?: string,        // Path where content was saved (if accepted)
-    rejectedFilePath?: string // Path where content was saved (if rejected)
+    rejectedFilePath?: string // Original filePath (if rejected)
   }
 }
 ```
@@ -244,22 +250,23 @@ const result = await getFileFeedback.execute({
 **Implementation Details**:
 
 1. **Temporary Directory**: Creates temp directory with prefix `file-feedback-`
-2. **Review UI Generation**: Generates HTML review page with:
+2. **HTML Content Handling**: For `text/html` content type, writes content to `user_content.html` in temp directory
+3. **Review UI Generation**: Generates HTML review page with:
    - Accept/Reject buttons at top of page
    - Comment textarea for user feedback
    - Content display area with appropriate rendering
-3. **Express Server**: Starts HTTP server to serve the review UI
-4. **Browser Launch**: Automatically launches browser using `open` package
-5. **Content Rendering**:
+4. **Express Server**: Starts HTTP server to serve the review UI
+5. **Browser Launch**: Automatically launches browser using `open` package
+6. **Content Rendering**:
    - Markdown: Uses `marked.js` library for HTML conversion with CSS styling
-   - HTML: Renders in iframe for proper isolation
+   - HTML: Renders in iframe referencing `user_content.html` for proper isolation
    - JSON: Pre-formatted display with HTML escaping
    - Plain text: Safe HTML escaping for display
-6. **File Operations**:
+7. **File Operations**:
    - If accepted: Saves content to specified `filePath` using FileSystemService
    - If rejected: Saves content with `.rejectedyyyyMMdd-HHmmss` suffix (e.g., `file.rejected20240115-143022.txt`)
-7. **Cleanup**: Automatically removes temporary directory and stops server
-8. **Error Handling**: Caught errors during cleanup are logged but don't stop execution
+8. **Cleanup**: Automatically removes temporary directory and stops server
+9. **Error Handling**: Throws error if required parameters are missing; cleanup errors are logged but don't stop execution
 
 **Response Handling**:
 
@@ -272,12 +279,19 @@ if (result.data.status === "accepted") {
     console.log("User comment:", result.data.comment);
   }
 } else {
-  console.log("Content rejected:", result.data.rejectedFilePath);
+  console.log("Content rejected");
+  console.log("Original path:", result.data.rejectedFilePath);
   if (result.data.comment) {
     console.log("User comment:", result.data.comment);
   }
 }
 ```
+
+**Error Handling**:
+
+- Throws error if `filePath` or `content` parameters are missing
+- Cleanup errors are caught and logged but don't stop execution
+- Server startup errors are logged with fallback URL reporting
 
 ---
 
@@ -374,7 +388,7 @@ const result = await reactFeedback.execute({
 6. **Express Server**: Starts HTTP server to serve the preview
 7. **Browser Launch**: Automatically opens browser to preview page
 8. **File Operations**:
-   - If accepted: Saves component code to specified `file` path
+   - If accepted: Saves component code to specified `file` path using FileSystemService
    - If rejected: Saves component with `.rejectedyyyyMMdd-HH:mm` suffix (e.g., `component.rejected20240115-14:30.tsx`)
 9. **Cleanup**: Removes temporary directory and stops server
 10. **Error Handling**: Throws error if `code` parameter is missing
@@ -382,7 +396,7 @@ const result = await reactFeedback.execute({
 **Bundling Configuration**:
 
 ```typescript
-esbuild.build({
+await esbuild.build({
   entryPoints: [jsxPath],
   outfile: bundlePath,
   bundle: true,
@@ -424,6 +438,11 @@ if (result.data.status === "accept") {
   }
 }
 ```
+
+**Error Handling**:
+
+- Throws error if `code` parameter is missing
+- Cleanup errors are not explicitly caught (temporary directory is removed after file operations)
 
 ## Plugin Configuration
 
@@ -580,21 +599,21 @@ All tools follow consistent error handling patterns:
 ### Parameter Validation
 
 ```typescript
-// askQuestions: Validates message and questions are provided
-if (!message || !questions) {
-  throw new Error(`[ask_questions] message and questions are required parameters.`);
+// askQuestions: Validates that at least one question is provided
+if (questionItems.size === 0) {
+  return "You did not provide any questions, please provide at least one question to ask the user.";
 }
 
 // getFileFeedback: Validates filePath and content are provided
 if (!filePath || !content) {
   throw new Error(
-    `[feedback_getFileFeedback] filePath and content are required parameters.`
+    `[feedback_getFileFeedback] filePath and content are required parameters for getFileFeedback.`
   );
 }
 
 // reactFeedback: Validates code is provided
 if (!code) {
-  throw new Error(`[feedback_react-feedback] code is required parameter.`);
+  throw new Error(`[feedback_react-feedback] code is required parameter for react-feedback.`);
 }
 ```
 
@@ -603,7 +622,7 @@ if (!code) {
 - Invalid input parameters: Throws errors with descriptive messages
 - File system operations: Handle errors with logging without crashing
 - Server startup: Log errors and fall back to URL reporting
-- Cleanup operations: Caught errors are logged but don't stop execution
+- Cleanup operations: Caught errors are logged but don't stop execution (except in react-feedback where cleanup is not explicitly caught)
 
 ### Error Types
 
