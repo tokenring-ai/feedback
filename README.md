@@ -68,7 +68,9 @@ z.object({
   message: z.string().describe("A free-form, paragraph sized message, explaining the problem you are facing, or the uncertainty you have about the task."),
   questions: z.array(z.object({
     question: z.string().describe("A question to ask the human, such as something to clarify, or to get additional information on."),
-    choices: z.array(z.string()).describe("Suggested choices for the human to select from. The human can choose from any of these options or provide their own response.")
+    choices: z
+      .array(z.string())
+      .describe("Suggested choices for the human to select from. The human can choose from any of these options or provide their own response.")
   }))
 })
 ```
@@ -176,7 +178,8 @@ Answer 2
 z.object({
   filePath: z.string().describe("The path where the file content should be saved if accepted."),
   content: z.string().describe("The actual text content to be reviewed."),
-  contentType: z.string()
+  contentType: z
+    .string()
     .describe("Optional. The MIME type of the content (e.g., 'text/plain', 'text/html', 'application/json', 'text/markdown', 'text/x-markdown'). Defaults to 'text/plain'. If 'text/markdown' or 'text/x-markdown', content is rendered as HTML for review. Used for browser rendering.")
     .default("text/plain")
 }).strict()
@@ -576,21 +579,21 @@ async function execute(params: unknown, agent: Agent) {
 - `@tokenring-ai/agent@0.2.0` - Agent system and question schema
 - `@tokenring-ai/filesystem@0.2.0` - File system service
 - `zod@^4.3.6` - Schema validation
-- `esbuild@^0.27.3` - React component bundling
+- `esbuild@^0.27.4` - React component bundling
 - `esbuild-plugin-external-global@^1.0.1` - External global plugin for esbuild
 - `express@^5.2.1` - Web server for preview
-- `marked@^17.0.3` - Markdown rendering
+- `marked@^17.0.4` - Markdown rendering
 - `date-fns@^4.1.0` - Date formatting
 - `date-fns-tz@^3.2.0` - Time zone support
 - `open@^11.0.0` - Browser launcher
-- `react@^19.2.4` - React library
-- `react-dom@^19.2.4` - React DOM library
+- `react@^19.2.4` - React library (package dependency, but uses React 18 from CDN for browser previews)
+- `react-dom@^19.2.4` - React DOM library (package dependency, but uses React DOM 18 from CDN for browser previews)
 
 ### Development Dependencies
 
 - `typescript@^5.9.3` - TypeScript compiler
 - `@types/express@^5.0.6` - Express type definitions
-- `vitest@^4.0.18` - Testing framework
+- `vitest@^4.1.0` - Testing framework
 
 ## Error Handling
 
@@ -622,7 +625,9 @@ if (!code) {
 - Invalid input parameters: Throws errors with descriptive messages
 - File system operations: Handle errors with logging without crashing
 - Server startup: Log errors and fall back to URL reporting
-- Cleanup operations: Caught errors are logged but don't stop execution (except in react-feedback where cleanup is not explicitly caught)
+- Cleanup errors:
+  - `getFileFeedback`: Caught errors are logged but don't stop execution
+  - `react-feedback`: Cleanup errors are not explicitly caught
 
 ### Error Types
 
@@ -661,6 +666,23 @@ bun run test:coverage
 - Node environment for test execution
 - Isolated test runs with globals enabled
 
+### Test Configuration
+
+The package uses the following vitest configuration:
+
+```typescript
+import {defineConfig} from "vitest/config";
+
+export default defineConfig({
+  test: {
+    include: ["**/*.test.ts"],
+    environment: "node",
+    globals: true,
+    isolate: true,
+  },
+});
+```
+
 ## Integration Patterns
 
 ### Service Access
@@ -696,6 +718,66 @@ export default {
   execute: async (params, agent) => { ... }
 };
 ```
+
+## Best Practices
+
+### Using askQuestions
+
+1. **Provide Clear Context**: Always include a descriptive message explaining why you need feedback
+2. **Limit Question Count**: Ask focused questions to avoid overwhelming users
+3. **Offer Meaningful Choices**: When providing choices, ensure they cover the main options
+4. **Use Empty Choices**: For open-ended responses, use empty choices array to enable text input
+
+### Using getFileFeedback
+
+1. **Specify Content Type**: Always specify the correct `contentType` for proper rendering
+2. **Provide Valid Paths**: Ensure `filePath` is valid and writable
+3. **Handle Large Files**: For large files, consider summarizing or splitting content
+4. **Use Markdown**: For code or documentation, use `text/markdown` for better readability
+
+### Using react-feedback
+
+1. **Include Dependencies**: Ensure all required imports are included in the code
+2. **Keep Components Simple**: Focus on the component being reviewed, avoid complex dependencies
+3. **Provide Filename**: Specify a meaningful filename for better organization
+4. **Test Locally**: Verify the component works before submitting for feedback
+
+## Testing and Development
+
+### Running Tests
+
+```bash
+# Run all tests
+bun test
+
+# Run tests in watch mode
+bun test:watch
+
+# Run tests with coverage
+bun test:coverage
+```
+
+### Package Structure for Testing
+
+- Tests should be placed in `**/*.test.ts` files
+- Use vitest for test assertions
+- Mock agent and service dependencies
+- Test each tool's execute function independently
+
+### Development Workflow
+
+1. Install dependencies: `bun install`
+2. Make changes to tool implementations
+3. Run tests: `bun test`
+4. Build package: `bun run build`
+5. Test integration with Token Ring applications
+
+## Related Components
+
+- **@tokenring-ai/agent**: Core agent system used for human interaction
+- **@tokenring-ai/chat**: Chat service for tool registration
+- **@tokenring-ai/filesystem**: File system service for file operations
+- **@tokenring-ai/app**: Base application framework
 
 ## License
 
