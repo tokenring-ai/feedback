@@ -9,8 +9,7 @@ import {z} from "zod";
 const name = "ask_questions";
 const displayName = "Feedback/askQuestions";
 
-const description =
-  "The ask_questions tool is to be called when feedback from the user is necessary, or when you are unsure or uncertain about the proper path to take, " +
+const description = "The ask_questions tool is to be called when feedback from the user is necessary, or when you are unsure or uncertain about the proper path to take, " +
   "or are unsure about how to complete the task the user has given.\n" +
   "If there is uncertainty about the task to be completed, or you are worried about doing something incorrectly, " +
   "use this tool, as it provides a strong guarantee that you are doing things aligned with the users intents.\n" +

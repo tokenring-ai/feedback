@@ -21,8 +21,7 @@ const TMP_PREFIX = "react-preview-";
 /**
  * Render & review a React component in the browser.
  */
-const description =
-  "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
+const description = "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
 const inputSchema = z
   .object({
     code: z
