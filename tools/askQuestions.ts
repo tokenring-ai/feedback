@@ -57,7 +57,7 @@ async function execute(
       questionItems.set(question.question, {
         type: 'text',
         label: question.question,
-        defaultValue: "The user did not provider an answer, use your own judgement",
+        defaultValue: "The user did not provide an answer, use your own judgement",
       });
     }
   }
@@ -96,7 +96,7 @@ async function execute(
           questionItems.set(question, {
             type: 'text',
             label: item!.label,
-            defaultValue: "The user did not provider an answer, use your own judgement",
+            defaultValue: "The user did not provide an answer, use your own judgement",
           });
         } else {
           completeResults[question] = answer;

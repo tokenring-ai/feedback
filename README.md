@@ -578,11 +578,12 @@ async function execute(params: unknown, agent: Agent) {
 - `@tokenring-ai/chat@0.2.0` - Chat service
 - `@tokenring-ai/agent@0.2.0` - Agent system and question schema
 - `@tokenring-ai/filesystem@0.2.0` - File system service
+- `@tokenring-ai/utility@0.2.0` - Shared utilities (transitive)
 - `zod@^4.3.6` - Schema validation
 - `esbuild@^0.27.4` - React component bundling
 - `esbuild-plugin-external-global@^1.0.1` - External global plugin for esbuild
 - `express@^5.2.1` - Web server for preview
-- `marked@^17.0.4` - Markdown rendering
+- `marked@^17.0.5` - Markdown rendering
 - `date-fns@^4.1.0` - Date formatting
 - `date-fns-tz@^3.2.0` - Time zone support
 - `open@^11.0.0` - Browser launcher
@@ -591,9 +592,9 @@ async function execute(params: unknown, agent: Agent) {
 
 ### Development Dependencies
 
-- `typescript@^5.9.3` - TypeScript compiler
+- `typescript@^6.0.2` - TypeScript compiler
 - `@types/express@^5.0.6` - Express type definitions
-- `vitest@^4.1.0` - Testing framework
+- `vitest@^4.1.1` - Testing framework
 
 ## Error Handling
 

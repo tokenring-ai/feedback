@@ -104,7 +104,14 @@ async function execute(
   const {resultPromise, url, stop} = await startServer(tmp, agent);
 
   // 5. Launch browser & await user choice
-  await open(url);
+  try {
+    await open(url);
+    agent.infoMessage(`[${name}] React preview opened at: ${url}`);
+  } catch (err) {
+    agent.infoMessage(
+      `[${name}] React preview available at: ${url} (open command failed)`,
+    );
+  }
   const result = await resultPromise;
 
   // 6. If accepted ➜ copy into repo
