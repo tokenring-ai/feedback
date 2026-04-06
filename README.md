@@ -36,6 +36,16 @@ pkg/feedback/
 └── README.md                 # This documentation
 ```
 
+## Tool Names
+
+The package provides three tools with the following internal names and display names:
+
+| Internal Name | Display Name | Description |
+|---------------|--------------|-------------|
+| `ask_questions` | `Feedback/askQuestions` | Ask questions to users via chat |
+| `feedback_getFileFeedback` | `Feedback/getFileFeedback` | Get feedback on file content via browser |
+| `feedback_react-feedback` | `Feedback/react-feedback` | Get feedback on React components via browser |
+
 ## Usage
 
 ### Plugin Integration
@@ -394,7 +404,7 @@ const result = await reactFeedback.execute({
    - If accepted: Saves component code to specified `file` path using FileSystemService
    - If rejected: Saves component with `.rejectedyyyyMMdd-HH:mm` suffix (e.g., `component.rejected20240115-14:30.tsx`)
 9. **Cleanup**: Removes temporary directory and stops server
-10. **Error Handling**: Throws error if `code` parameter is missing
+10. **Error Handling**: Throws error if `code` parameter is missing; cleanup is performed after file operations
 
 **Bundling Configuration**:
 
@@ -445,7 +455,8 @@ if (result.data.status === "accept") {
 **Error Handling**:
 
 - Throws error if `code` parameter is missing
-- Cleanup errors are not explicitly caught (temporary directory is removed after file operations)
+- Cleanup is performed after file operations (temporary directory removed)
+- Server is stopped after cleanup
 
 ## Plugin Configuration
 
@@ -578,7 +589,6 @@ async function execute(params: unknown, agent: Agent) {
 - `@tokenring-ai/chat@0.2.0` - Chat service
 - `@tokenring-ai/agent@0.2.0` - Agent system and question schema
 - `@tokenring-ai/filesystem@0.2.0` - File system service
-- `@tokenring-ai/utility@0.2.0` - Shared utilities (transitive)
 - `zod@^4.3.6` - Schema validation
 - `esbuild@^0.27.4` - React component bundling
 - `esbuild-plugin-external-global@^1.0.1` - External global plugin for esbuild
@@ -708,17 +718,26 @@ app.waitForService(ChatService, chatService =>
 );
 ```
 
-Where `tools` exports individual tool definitions with the proper structure:
+Where `tools` is exported from `tools.ts`:
 
 ```typescript
+import askQuestions from "./tools/askQuestions.ts";
+import getFileFeedback from "./tools/getFileFeedback.ts";
+import reactFeedback from "./tools/react-feedback.ts";
+
 export default {
-  name: "tool_name",
-  displayName: "Category/name",
-  description: "Tool description",
-  inputSchema: z.object({ ... }),
-  execute: async (params, agent) => { ... }
+  askQuestions,
+  getFileFeedback,
+  reactFeedback,
 };
 ```
+
+Each tool follows the `TokenRingToolDefinition` pattern with:
+- **name**: Internal tool name (e.g., `ask_questions`, `feedback_getFileFeedback`, `feedback_react-feedback`)
+- **displayName**: Formatted as "Category/ToolName" (e.g., `Feedback/askQuestions`, `Feedback/getFileFeedback`, `Feedback/react-feedback`)
+- **description**: Detailed explanation of functionality
+- **inputSchema**: Zod schema for validation
+- **execute**: Async function that performs the tool's action
 
 ## Best Practices
 

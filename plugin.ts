@@ -9,6 +9,7 @@ const packageConfigSchema = z.object({});
 
 export default {
   name: packageJSON.name,
+  displayName: "Human Feedback",
   version: packageJSON.version,
   description: packageJSON.description,
   install(app, config) {
