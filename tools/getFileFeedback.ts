@@ -1,5 +1,5 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition, type TokenRingToolJSONResult} from "@tokenring-ai/chat/schema";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {TokenRingToolDefinition, TokenRingToolJSONResult,} from "@tokenring-ai/chat/schema";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import {format} from "date-fns";
 import express, {type Request, type Response} from "express";
@@ -17,7 +17,8 @@ const displayName = "Feedback/getFileFeedback";
 
 const TMP_PREFIX = "file-feedback-";
 
-const description = "This tool allows you to present the content of a file to the user, solicit feedback (accept/reject with comments), and optionally write the content to a specified file path if accepted. If the `contentType` is `text/markdown` or `text/x-markdown`, the content will be rendered as HTML for review.";
+const description =
+  "This tool allows you to present the content of a file to the user, solicit feedback (accept/reject with comments), and optionally write the content to a specified file path if accepted. If the `contentType` is `text/markdown` or `text/x-markdown`, the content will be rendered as HTML for review.";
 
 const inputSchema = z
   .object({
@@ -42,7 +43,11 @@ export interface GetFileFeedbackResult {
 }
 
 async function execute(
-  {filePath, content, contentType = "text/plain"}: z.output<typeof inputSchema>,
+  {
+    filePath,
+    content,
+    contentType = "text/plain",
+  }: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<TokenRingToolJSONResult<GetFileFeedbackResult>> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -75,13 +80,16 @@ async function execute(
   await fs.writeFile(path.join(tmpDir, "index.html"), indexHtmlContent, "utf8");
 
   // 3. Spin up preview server
-  const {resultPromise, url, stop} = await startFileReviewServer(tmpDir, agent);
+  const {resultPromise, url, stop} = await startFileReviewServer(
+    tmpDir,
+    agent,
+  );
 
   // 4. Launch browser & await user choice
-  if (typeof (open as unknown as Function) === "function") {
+  try {
     await open(url);
     agent.infoMessage(`[${name}] File review UI opened at: ${url}`);
-  } else {
+  } catch {
     agent.infoMessage(
       `[${name}] File review UI available at: ${url} (open command mocked/unavailable)`,
     );
@@ -110,7 +118,8 @@ async function execute(
     await fs.rm(tmpDir, {recursive: true, force: true});
   } catch (err: unknown) {
     agent.errorMessage(
-      `[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error,
+      `[${name}] Error cleaning up temporary directory ${tmpDir}`,
+      err as Error,
     );
   }
   stop();
@@ -122,19 +131,22 @@ async function execute(
       comment: result.comment,
       filePath: result.accepted ? filePath : undefined,
       rejectedFilePath: result.accepted ? undefined : filePath,
-    }
+    },
   };
 }
 
 function escapeHTML(str: string) {
-  const map: Record<'&' | '<' | '>' | '"' | "'", string> = {
+  const map: Record<"&" | "<" | ">" | '"' | "'", string> = {
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;",
   };
-  return str.replace(/[&<>"']/g, (match: string) => map[match as keyof typeof map]);
+  return str.replace(
+    /[&<>"']/g,
+    (match: string) => map[match as keyof typeof map],
+  );
 }
 
 function genFileViewHTML({
@@ -229,17 +241,20 @@ async function startFileReviewServer(tmpDir: string, agent: Agent) {
   app.use("/", express.static(tmpDir));
 
   let resolveResult: (value: { accepted: boolean; comment?: string }) => void;
-  const resultPromise: Promise<{ accepted: boolean; comment?: string }> = new Promise(
-    (r) => (resolveResult = r),
-  );
+  const resultPromise: Promise<{ accepted: boolean; comment?: string }> =
+    new Promise((r) => (resolveResult = r));
 
   app.post("/result", (req: Request, res: Response) => {
-    const {accepted, comment} = req.body as { accepted: boolean; comment?: string };
+    const {accepted, comment} = req.body as {
+      accepted: boolean;
+      comment?: string;
+    };
     res.status(200).send("ok");
     resolveResult({accepted, comment});
     agent.infoMessage(
       `[${name}] Feedback received: ${accepted ? "Accepted" : "Rejected"}${
-        comment ? " with comment: " + comment : ""}`
+        comment ? " with comment: " + comment : ""
+      }`,
     );
   });
 
@@ -256,10 +271,17 @@ async function startFileReviewServer(tmpDir: string, agent: Agent) {
   return {
     resultPromise,
     url,
-    stop: () => server.close(() => agent.infoMessage(`[${name}] File review server stopped.`)),
+    stop: () =>
+      server.close(() =>
+        agent.infoMessage(`[${name}] File review server stopped.`),
+      ),
   };
 }
 
 export default {
-  name, displayName, description, inputSchema, execute,
+  name,
+  displayName,
+  description,
+  inputSchema,
+  execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

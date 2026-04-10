@@ -1,5 +1,5 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition, type TokenRingToolJSONResult} from "@tokenring-ai/chat/schema";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {TokenRingToolDefinition, TokenRingToolJSONResult,} from "@tokenring-ai/chat/schema";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import {format} from "date-fns";
 import esbuild from "esbuild";
@@ -21,7 +21,8 @@ const TMP_PREFIX = "react-preview-";
 /**
  * Render & review a React component in the browser.
  */
-const description = "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
+const description =
+  "This tool lets you solicit feedback from the user, by opening a browser window, where you can show them an HTML document (formatted in jsx, to be rendered via react), and then allows them to accept or reject the document, and optionally add comments, which are then returned to you as a result.";
 const inputSchema = z
   .object({
     code: z
@@ -77,12 +78,12 @@ async function execute(
   const bundlePath = path.join(tmp, "bundle.ts");
   // Normalize plugins typing to the esbuild Plugin[] expected by our local esbuild
   const plugins: esbuild.Plugin[] = [
-    (externalGlobalPlugin({
+    externalGlobalPlugin({
       react: "window.React",
       "react-dom": "window.ReactDOM",
       "react/jsx-runtime": "window.JSX",
       jQuery: "$",
-    }) as unknown) as esbuild.Plugin,
+    }) as unknown as esbuild.Plugin,
   ];
 
   await esbuild.build({
@@ -107,7 +108,7 @@ async function execute(
   try {
     await open(url);
     agent.infoMessage(`[${name}] React preview opened at: ${url}`);
-  } catch (err) {
+  } catch {
     agent.infoMessage(
       `[${name}] React preview available at: ${url} (open command failed)`,
     );
@@ -132,7 +133,7 @@ async function execute(
 
   return {
     type: "json",
-    data: result as ReactFeedbackResult
+    data: result as ReactFeedbackResult,
   };
 }
 
@@ -192,7 +193,6 @@ function genHTML({bundlePath}: { bundlePath: string }) {
 }
 
 async function startServer(tmpDir: string, agent: Agent) {
-
   const app = express();
   app.use("/", express.static(tmpDir));
   let resolveResult: (value: ReactFeedbackResult) => void;
@@ -208,9 +208,12 @@ async function startServer(tmpDir: string, agent: Agent) {
     });
   });
   const server = http.createServer(app);
-  await new Promise<void>((resolve) => server.listen(0, () => resolve(undefined)));
+  await new Promise<void>((resolve) =>
+    server.listen(0, () => resolve(undefined)),
+  );
   const addr = server.address();
-  const port = typeof addr === "object" && addr && "port" in addr ? addr.port : 0;
+  const port =
+    typeof addr === "object" && addr && "port" in addr ? addr.port : 0;
   const url = `http://localhost:${port}/index.html`;
 
   // Prefix informational messages with the tool name as required.
@@ -223,5 +226,9 @@ async function startServer(tmpDir: string, agent: Agent) {
 }
 
 export default {
-  name, displayName, description, inputSchema, execute,
+  name,
+  displayName,
+  description,
+  inputSchema,
+  execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;
