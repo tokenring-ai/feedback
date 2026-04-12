@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolJSONResult,} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import {format} from "date-fns";
 import esbuild from "esbuild";
@@ -60,7 +60,7 @@ export interface ToolError {
 async function execute(
   {file, code}: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<TokenRingToolJSONResult<ReactFeedbackResult>> {
+): Promise<TokenRingToolResult> {
   if (!code) {
     // Throw an error instead of returning an error object.
     throw new Error(`[${name}] code is required parameter for react-feedback.`);
@@ -131,10 +131,7 @@ async function execute(
   // 7. Cleanup
   stop();
 
-  return {
-    type: "json",
-    data: result as ReactFeedbackResult,
-  };
+  return JSON.stringify(result);
 }
 
 function genHTML({bundlePath}: { bundlePath: string }) {

@@ -1,6 +1,6 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TextQuestionSchema, TreeSelectQuestionSchema,} from "@tokenring-ai/agent/question";
-import type {TokenRingToolDefinition, TokenRingToolTextResult,} from "@tokenring-ai/chat/schema";
+import type {TextQuestionSchema, TreeSelectQuestionSchema} from "@tokenring-ai/agent/question";
+import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 
 /**
@@ -46,7 +46,7 @@ const inputSchema = z.object({
 async function execute(
   {message, questions}: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<TokenRingToolTextResult> {
+): Promise<TokenRingToolResult> {
   const questionItems = new Map<
     string,
     | z.input<typeof TreeSelectQuestionSchema>

@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolJSONResult,} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {FileSystemService} from "@tokenring-ai/filesystem";
 import {format} from "date-fns";
 import express, {type Request, type Response} from "express";
@@ -49,7 +49,7 @@ async function execute(
     contentType = "text/plain",
   }: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<TokenRingToolJSONResult<GetFileFeedbackResult>> {
+): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Validate required parameters – throw error instead of returning
@@ -124,15 +124,12 @@ async function execute(
   }
   stop();
 
-  return {
-    type: "json",
-    data: {
-      status: result.accepted ? "accepted" : "rejected",
-      comment: result.comment,
-      filePath: result.accepted ? filePath : undefined,
-      rejectedFilePath: result.accepted ? undefined : filePath,
-    },
-  };
+  return JSON.stringify({
+    status: result.accepted ? "accepted" : "rejected",
+    comment: result.comment,
+    filePath: result.accepted ? filePath : undefined,
+    rejectedFilePath: result.accepted ? undefined : filePath,
+  });
 }
 
 function escapeHTML(str: string) {
