@@ -159,7 +159,7 @@ function genFileViewHTML({
   let effectiveContentType = contentType;
 
   if (contentType === "text/markdown" || contentType === "text/x-markdown") {
-    const rawMarkup = marked.parse(contentString);
+    const rawMarkup = marked.parse(contentString, { async: false });
     displayContentHtml = `<div class="markdown-body" style="padding:10px; border:1px solid #ccc; min-height:50vh;">${rawMarkup}</div>`;
   } else if (contentType === "text/html") {
     displayContentHtml = `<iframe src="${htmlContentPath}" style="width:100%; height:80vh; border:1px solid #ccc;"></iframe>`;
