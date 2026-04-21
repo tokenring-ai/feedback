@@ -83,7 +83,7 @@ async function execute(
       "react-dom": "window.ReactDOM",
       "react/jsx-runtime": "window.JSX",
       jQuery: "$",
-    }) as unknown as esbuild.Plugin,
+    }),
   ];
 
   await esbuild.build({

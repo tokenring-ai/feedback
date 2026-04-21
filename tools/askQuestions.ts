@@ -1,6 +1,7 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type {TextQuestionSchema, TreeSelectQuestionSchema} from "@tokenring-ai/agent/question";
 import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
+import {firstOfArrayable} from "@tokenring-ai/utility/array/arrayable";
 import {z} from "zod";
 
 /**
@@ -108,14 +109,13 @@ async function execute(
       );
     }
 
-    for (let [question, answer] of Object.entries(result.Questions)) {
-      if (answer === null) {
+    for (let [question, answerArr] of Object.entries(result.Questions)) {
+      const answer = firstOfArrayable(answerArr);
+      if (answer == null) {
         completeResults[question] =
           "The user did not provide an answer, use your own judgement";
         questionItems.delete(question);
       } else {
-        answer = Array.isArray(answer) ? answer[0] : answer;
-
         if (answer === "__other__") {
           const item = questionItems.get(question);
           questionItems.set(question, {
