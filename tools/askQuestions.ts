@@ -1,8 +1,8 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TextQuestionSchema, TreeSelectQuestionSchema} from "@tokenring-ai/agent/question";
-import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
-import {firstOfArrayable} from "@tokenring-ai/utility/array/arrayable";
-import {z} from "zod";
+import type { TextQuestionSchema, TreeSelectQuestionSchema } from "@tokenring-ai/agent/question";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { firstOfArrayable } from "@tokenring-ai/utility/array/arrayable";
+import { z } from "zod";
 
 /**
  * Allows the AI to ask the user a question about the current task.
@@ -19,23 +19,13 @@ const description =
   "The user will either pick one of these choices, or respond with their own answer if none of the options are aligned with their intent.";
 
 const inputSchema = z.object({
-  message: z
-    .string()
-    .describe(
-      "A free-form, paragraph sized message, explaining the problem you are facing, or the uncertainty you have about the task.",
-    ),
+  message: z.string().describe("A free-form, paragraph sized message, explaining the problem you are facing, or the uncertainty you have about the task."),
   questions: z.array(
     z.object({
-      question: z
-        .string()
-        .describe(
-          "A question to ask the human, such as something to clarify, or to get additional information on.",
-        ),
+      question: z.string().describe("A question to ask the human, such as something to clarify, or to get additional information on."),
       choices: z
         .array(z.string())
-        .describe(
-          "Suggested choices for the human to select from. The human can choose from any of these options or provide their own response.",
-        ),
+        .describe("Suggested choices for the human to select from. The human can choose from any of these options or provide their own response."),
     }),
   ),
 });
@@ -44,15 +34,8 @@ const inputSchema = z.object({
  * Executes the askQuestion tool.
  * Returns a result object. Errors are thrown as exceptions.
  */
-async function execute(
-  {message, questions}: z.output<typeof inputSchema>,
-  agent: Agent,
-): Promise<TokenRingToolResult> {
-  const questionItems = new Map<
-    string,
-    | z.input<typeof TreeSelectQuestionSchema>
-    | z.input<typeof TextQuestionSchema>
-  >();
+async function execute({ message, questions }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+  const questionItems = new Map<string, z.input<typeof TreeSelectQuestionSchema> | z.input<typeof TextQuestionSchema>>();
 
   for (const question of questions) {
     if (question.choices.length > 0) {
@@ -63,7 +46,7 @@ async function execute(
         maximumSelections: 1,
         defaultValue: ["__other__"],
         tree: [
-          ...question.choices.map((choice) => ({
+          ...question.choices.map(choice => ({
             name: choice,
             value: choice,
           })),
@@ -77,8 +60,7 @@ async function execute(
       questionItems.set(question.question, {
         type: "text",
         label: question.question,
-        defaultValue:
-          "The user did not provide an answer, use your own judgement",
+        defaultValue: "The user did not provide an answer, use your own judgement",
       });
     }
   }
@@ -109,11 +91,10 @@ async function execute(
       );
     }
 
-    for (let [question, answerArr] of Object.entries(result.Questions)) {
+    for (const [question, answerArr] of Object.entries(result.Questions)) {
       const answer = firstOfArrayable(answerArr);
       if (answer == null) {
-        completeResults[question] =
-          "The user did not provide an answer, use your own judgement";
+        completeResults[question] = "The user did not provide an answer, use your own judgement";
         questionItems.delete(question);
       } else {
         if (answer === "__other__") {
@@ -121,8 +102,7 @@ async function execute(
           questionItems.set(question, {
             type: "text",
             label: item!.label,
-            defaultValue:
-              "The user did not provide an answer, use your own judgement",
+            defaultValue: "The user did not provide an answer, use your own judgement",
           });
         } else {
           completeResults[question] = answer;
@@ -132,9 +112,7 @@ async function execute(
     }
   } while (questionItems.size > 0);
 
-  return `The user has provided the following responses:\n${Object.entries(
-    completeResults,
-  )
+  return `The user has provided the following responses:\n${Object.entries(completeResults)
     .map(([question, answer]) => `${question}\n${answer}`)
     .join("\n\n")}`;
 }

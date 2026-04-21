@@ -1,16 +1,16 @@
-import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
-import {FileSystemService} from "@tokenring-ai/filesystem";
-import {format} from "date-fns";
-import esbuild from "esbuild";
-import {externalGlobalPlugin} from "esbuild-plugin-external-global";
-import express, {type Request, type Response} from "express";
 import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { FileSystemService } from "@tokenring-ai/filesystem";
+import { format } from "date-fns";
+import esbuild from "esbuild";
+import { externalGlobalPlugin } from "esbuild-plugin-external-global";
+import express, { type Request, type Response } from "express";
 import open from "open";
-import {z} from "zod";
+import { z } from "zod";
 
 // Export the tool name in the required "packageName/toolName" format.
 const name = "feedback_react-feedback";
@@ -30,25 +30,20 @@ const inputSchema = z
       .describe(
         "The complete source code of the React component to be previewed. This should be valid JSX/TSX that can be bundled and rendered in the browser.",
       ),
-    file: z
-      .string()
-      .optional()
-      .describe("The filename/path of the React component to be previewed"),
+    file: z.string().exactOptional().describe("The filename/path of the React component to be previewed"),
   })
   .strict();
 export interface ReactFeedbackResultAccepted {
   status: "accept";
-  comment?: string;
+  comment?: string | undefined;
 }
 
 export interface ReactFeedbackResultRejected {
   status: "reject" | "rejected";
-  comment?: string;
+  comment?: string | undefined;
 }
 
-export type ReactFeedbackResult =
-  | ReactFeedbackResultAccepted
-  | ReactFeedbackResultRejected;
+export type ReactFeedbackResult = ReactFeedbackResultAccepted | ReactFeedbackResultRejected;
 
 /**
  * Standard error shape for tool execution failures.
@@ -57,17 +52,13 @@ export interface ToolError {
   error: string;
 }
 
-async function execute(
-  {file, code}: z.output<typeof inputSchema>,
-  agent: Agent,
-): Promise<TokenRingToolResult> {
+async function execute({ file, code }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   if (!code) {
     // Throw an error instead of returning an error object.
     throw new Error(`[${name}] code is required parameter for react-feedback.`);
   }
   const fileSystem = agent.requireServiceByType(FileSystemService);
-  if (file == null)
-    file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
+  if (file == null) file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
   // 1. Create a temp workspace
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
@@ -98,20 +89,18 @@ async function execute(
   });
 
   // 3. Make index.html
-  const html = genHTML({bundlePath: "./bundle.ts"});
+  const html = genHTML({ bundlePath: "./bundle.ts" });
   await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
 
   // 4. Spin up preview server
-  const {resultPromise, url, stop} = await startServer(tmp, agent);
+  const { resultPromise, url, stop } = await startServer(tmp, agent);
 
   // 5. Launch browser & await user choice
   try {
     await open(url);
     agent.infoMessage(`[${name}] React preview opened at: ${url}`);
   } catch {
-    agent.infoMessage(
-      `[${name}] React preview available at: ${url} (open command failed)`,
-    );
+    agent.infoMessage(`[${name}] React preview available at: ${url} (open command failed)`);
   }
   const result = await resultPromise;
 
@@ -119,14 +108,11 @@ async function execute(
   if (result.status === "accept") {
     await fileSystem.writeFile(file, code, agent);
   } else {
-    const rejectFile = file.replace(
-      /\./,
-      `.rejected${format(new Date(), "yyyyMMdd-HH:mm")}.`,
-    );
+    const rejectFile = file.replace(/\./, `.rejected${format(new Date(), "yyyyMMdd-HH:mm")}.`);
     await fileSystem.writeFile(rejectFile, code, agent);
   }
 
-  await fs.rm(tmp, {recursive: true, force: true});
+  await fs.rm(tmp, { recursive: true, force: true });
 
   // 7. Cleanup
   stop();
@@ -134,7 +120,7 @@ async function execute(
   return JSON.stringify(result);
 }
 
-function genHTML({bundlePath}: { bundlePath: string }) {
+function genHTML({ bundlePath }: { bundlePath: string }) {
   return `<!doctype html>
 <html>
   <head>
@@ -193,9 +179,7 @@ async function startServer(tmpDir: string, agent: Agent) {
   const app = express();
   app.use("/", express.static(tmpDir));
   let resolveResult: (value: ReactFeedbackResult) => void;
-  const resultPromise: Promise<ReactFeedbackResult> = new Promise(
-    (r) => (resolveResult = r),
-  );
+  const resultPromise: Promise<ReactFeedbackResult> = new Promise(r => (resolveResult = r));
   app.post("/result", (req: Request, res: Response) => {
     let buf = "";
     req.on("data", (c: Buffer) => (buf += c.toString()));
@@ -205,12 +189,9 @@ async function startServer(tmpDir: string, agent: Agent) {
     });
   });
   const server = http.createServer(app);
-  await new Promise<void>((resolve) =>
-    server.listen(0, () => resolve(undefined)),
-  );
+  await new Promise<void>(resolve => server.listen(0, () => resolve(undefined)));
   const addr = server.address();
-  const port =
-    typeof addr === "object" && addr && "port" in addr ? addr.port : 0;
+  const port = typeof addr === "object" && addr && "port" in addr ? addr.port : 0;
   const url = `http://localhost:${port}/index.html`;
 
   // Prefix informational messages with the tool name as required.

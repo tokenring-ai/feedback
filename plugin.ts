@@ -1,7 +1,7 @@
-import type {TokenRingPlugin} from "@tokenring-ai/app";
-import {ChatService} from "@tokenring-ai/chat";
-import {z} from "zod";
-import packageJSON from "./package.json" with {type: "json"};
+import type { TokenRingPlugin } from "@tokenring-ai/app";
+import { ChatService } from "@tokenring-ai/chat";
+import { z } from "zod";
+import packageJSON from "./package.json" with { type: "json" };
 
 import tools from "./tools.ts";
 
@@ -13,9 +13,7 @@ export default {
   version: packageJSON.version,
   description: packageJSON.description,
   install(app, _config) {
-    app.waitForService(ChatService, (chatService) =>
-      chatService.addTools(...tools),
-    );
+    app.waitForService(ChatService, chatService => chatService.addTools(...tools));
   },
   config: packageConfigSchema,
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;

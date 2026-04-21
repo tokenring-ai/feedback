@@ -1,15 +1,15 @@
-import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
-import {FileSystemService} from "@tokenring-ai/filesystem";
-import {format} from "date-fns";
-import express, {type Request, type Response} from "express";
-import {marked} from "marked";
 import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { FileSystemService } from "@tokenring-ai/filesystem";
+import { format } from "date-fns";
+import express, { type Request, type Response } from "express";
+import { marked } from "marked";
 import open from "open";
-import {z} from "zod";
+import { z } from "zod";
 
 // Tool name export as required
 const name = "feedback_getFileFeedback";
@@ -22,9 +22,7 @@ const description =
 
 const inputSchema = z
   .object({
-    filePath: z
-      .string()
-      .describe("The path where the file content should be saved if accepted."),
+    filePath: z.string().describe("The path where the file content should be saved if accepted."),
     content: z.string().describe("The actual text content to be reviewed."),
     contentType: z
       .string()
@@ -37,26 +35,17 @@ const inputSchema = z
 
 export interface GetFileFeedbackResult {
   status: "accepted" | "rejected";
-  comment?: string;
-  filePath?: string;
-  rejectedFilePath?: string;
+  comment?: string | undefined;
+  filePath?: string | undefined;
+  rejectedFilePath?: string | undefined;
 }
 
-async function execute(
-  {
-    filePath,
-    content,
-    contentType = "text/plain",
-  }: z.output<typeof inputSchema>,
-  agent: Agent,
-): Promise<TokenRingToolResult> {
+async function execute({ filePath, content, contentType = "text/plain" }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Validate required parameters – throw error instead of returning
   if (!filePath || !content) {
-    throw new Error(
-      `[${name}] filePath and content are required parameters for getFileFeedback.`,
-    );
+    throw new Error(`[${name}] filePath and content are required parameters for getFileFeedback.`);
   }
 
   // 1. Create a temp workspace
@@ -74,53 +63,37 @@ async function execute(
   const indexHtmlContent = genFileViewHTML({
     contentString: content,
     contentType,
-    htmlContentPath:
-      contentType === "text/html" ? `./${userContentFileName}` : undefined,
+    htmlContentPath: contentType === "text/html" ? `./${userContentFileName}` : undefined,
   });
   await fs.writeFile(path.join(tmpDir, "index.html"), indexHtmlContent, "utf8");
 
   // 3. Spin up preview server
-  const {resultPromise, url, stop} = await startFileReviewServer(
-    tmpDir,
-    agent,
-  );
+  const { resultPromise, url, stop } = await startFileReviewServer(tmpDir, agent);
 
   // 4. Launch browser & await user choice
   try {
     await open(url);
     agent.infoMessage(`[${name}] File review UI opened at: ${url}`);
   } catch {
-    agent.infoMessage(
-      `[${name}] File review UI available at: ${url} (open command mocked/unavailable)`,
-    );
+    agent.infoMessage(`[${name}] File review UI available at: ${url} (open command mocked/unavailable)`);
   }
-  const result: { accepted: boolean; comment?: string } = await resultPromise;
+  const result: { accepted: boolean; comment?: string | undefined } = await resultPromise;
 
   // 5. If accepted ➜ copy into repo
   if (result.accepted) {
     await fileSystem.writeFile(filePath, content, agent);
-    agent.infoMessage(
-      `[${name}] Feedback accepted. Content written to ${filePath}`,
-    );
+    agent.infoMessage(`[${name}] Feedback accepted. Content written to ${filePath}`);
   } else {
-    const rejectFile = filePath.replace(
-      /(\.[^.]+)$|$/,
-      `.rejected${format(new Date(), "yyyyMMdd-HHmmss")}$1`,
-    );
+    const rejectFile = filePath.replace(/(\.[^.]+)$|$/, `.rejected${format(new Date(), "yyyyMMdd-HHmmss")}$1`);
     await fileSystem.writeFile(rejectFile, content, agent);
-    agent.infoMessage(
-      `[${name}] Feedback rejected. Content written to ${rejectFile}`,
-    );
+    agent.infoMessage(`[${name}] Feedback rejected. Content written to ${rejectFile}`);
   }
 
   // 6. Cleanup
   try {
-    await fs.rm(tmpDir, {recursive: true, force: true});
+    await fs.rm(tmpDir, { recursive: true, force: true });
   } catch (err: unknown) {
-    agent.errorMessage(
-      `[${name}] Error cleaning up temporary directory ${tmpDir}`,
-      err as Error,
-    );
+    agent.errorMessage(`[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error);
   }
   stop();
 
@@ -140,20 +113,17 @@ function escapeHTML(str: string) {
     '"': "&quot;",
     "'": "&#39;",
   };
-  return str.replace(
-    /[&<>"']/g,
-    (match: string) => map[match as keyof typeof map],
-  );
+  return str.replace(/[&<>"']/g, (match: string) => map[match as keyof typeof map]);
 }
 
 function genFileViewHTML({
-                           contentString,
-                           contentType,
-                           htmlContentPath,
-                         }: {
+  contentString,
+  contentType,
+  htmlContentPath,
+}: {
   contentString: string;
   contentType: string;
-  htmlContentPath?: string;
+  htmlContentPath?: string | undefined;
 }) {
   let displayContentHtml: string;
   let effectiveContentType = contentType;
@@ -237,41 +207,31 @@ async function startFileReviewServer(tmpDir: string, agent: Agent) {
   app.use(express.json());
   app.use("/", express.static(tmpDir));
 
-  let resolveResult: (value: { accepted: boolean; comment?: string }) => void;
-  const resultPromise: Promise<{ accepted: boolean; comment?: string }> =
-    new Promise((r) => (resolveResult = r));
+  let resolveResult: (value: { accepted: boolean; comment?: string | undefined }) => void;
+  const resultPromise: Promise<{ accepted: boolean; comment?: string | undefined }> = new Promise(r => (resolveResult = r));
 
   app.post("/result", (req: Request, res: Response) => {
-    const {accepted, comment} = req.body as {
+    const { accepted, comment } = req.body as {
       accepted: boolean;
       comment?: string;
     };
     res.status(200).send("ok");
-    resolveResult({accepted, comment});
-    agent.infoMessage(
-      `[${name}] Feedback received: ${accepted ? "Accepted" : "Rejected"}${
-        comment ? " with comment: " + comment : ""
-      }`,
-    );
+    resolveResult({ accepted, comment });
+    agent.infoMessage(`[${name}] Feedback received: ${accepted ? "Accepted" : "Rejected"}${comment ? " with comment: " + comment : ""}`);
   });
 
   const server = http.createServer(app);
-  await new Promise<void>((resolve) => server.listen(0, () => resolve()));
+  await new Promise<void>(resolve => server.listen(0, () => resolve()));
 
   const address = server.address();
   const port = typeof address === "string" ? 0 : (address?.port ?? 0);
   const url = `http://localhost:${port}/index.html`;
-  agent.infoMessage(
-    `[${name}] File review server running. Please navigate to: ${url}`,
-  );
+  agent.infoMessage(`[${name}] File review server running. Please navigate to: ${url}`);
 
   return {
     resultPromise,
     url,
-    stop: () =>
-      server.close(() =>
-        agent.infoMessage(`[${name}] File review server stopped.`),
-      ),
+    stop: () => server.close(() => agent.infoMessage(`[${name}] File review server stopped.`)),
   };
 }
 
