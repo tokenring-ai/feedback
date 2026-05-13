@@ -33,6 +33,7 @@ const inputSchema = z
     file: z.string().exactOptional().describe("The filename/path of the React component to be previewed"),
   })
   .strict();
+
 export interface ReactFeedbackResultAccepted {
   status: "accept";
   comment?: string | undefined;
