@@ -40,11 +40,11 @@ bun add @tokenring-ai/feedback
 
 ## Tools
 
-| Tool Name         | Display Name               | Description                      |
-|:------------------|:---------------------------|:---------------------------------|
-| `ask_questions`   | `Feedback/askQuestions`    | Ask questions via chat           |
-| `getFileFeedback` | `Feedback/getFileFeedback` | Get feedback on file content     |
-| `react-feedback`  | `Feedback/react-feedback`  | Get feedback on React components |
+| Tool Name                    | Display Name               | Description                      |
+|:-----------------------------|:---------------------------|:---------------------------------|
+| `ask_questions`              | `Feedback/askQuestions`    | Ask questions via chat           |
+| `feedback_getFileFeedback`   | `Feedback/getFileFeedback` | Get feedback on file content     |
+| `feedback_react-feedback`    | `Feedback/react-feedback`  | Get feedback on React components |
 
 ### Feedback/askQuestions
 
@@ -112,7 +112,7 @@ After implementation
 
 ### Feedback/getFileFeedback
 
-**Tool Name**: `getFileFeedback`
+**Tool Name**: `feedback_getFileFeedback`
 
 **Description**: Present file content to the user for review, solicit feedback
 (accept/reject with comments), and optionally write content to a file if
@@ -153,7 +153,7 @@ Returns a JSON string with the following structure:
   "status": "accepted" | "rejected",
   "comment": "optional user comment",
   "filePath": "path if accepted",
-  "rejectedFilePath": "path if rejected with timestamp"
+  "rejectedFilePath": "original filePath if rejected"
 }
 ```
 
@@ -178,7 +178,7 @@ Returns a JSON string with the following structure:
 
 ### Feedback/react-feedback
 
-**Tool Name**: `react-feedback`
+**Tool Name**: `feedback_react-feedback`
 
 **Description**: Show a React component in a browser window for user feedback,
 allowing accept/reject with optional comments. The component is bundled using
@@ -272,24 +272,24 @@ This package does not require any environment variables.
 
 ### Runtime Dependencies
 
-- `@tokenring-ai/app@0.2.0` - Base application framework
-- `@tokenring-ai/chat@0.2.0` - Chat service
-- `@tokenring-ai/agent@0.2.0` - Agent system and question schema
-- `@tokenring-ai/filesystem@0.2.0` - File system service
-- `@tokenring-ai/utility@0.2.0` - Utility functions
-- `zod@^4.3.6` - Schema validation
-- `esbuild@^0.28.0` - React component bundling
-- `esbuild-plugin-external-global@^1.0.1` - ESBuild plugin for external globals
-- `express@^5.2.1` - Web server for preview
-- `marked@^17.0.6` - Markdown rendering
-- `date-fns@^4.1.0` - Date formatting
-- `open@^11.0.0` - Browser launcher
+- `@tokenring-ai/app` - Base application framework
+- `@tokenring-ai/chat` - Chat service
+- `@tokenring-ai/agent` - Agent system and question schema
+- `@tokenring-ai/filesystem` - File system service
+- `@tokenring-ai/utility` - Utility functions
+- `zod` - Schema validation
+- `esbuild` - React component bundling
+- `esbuild-plugin-external-global` - ESBuild plugin for external globals
+- `express` - Web server for preview
+- `marked` - Markdown rendering
+- `date-fns` - Date formatting
+- `open` - Browser launcher
 
 ### Development Dependencies
 
-- `typescript@^6.0.2` - TypeScript compiler
-- `@types/express@^5.0.6` - Express type definitions
-- `vitest@^4.1.1` - Testing framework
+- `typescript` - TypeScript compiler
+- `@types/express` - Express type definitions
+- `vitest` - Testing framework
 
 ## Development
 
