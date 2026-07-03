@@ -91,6 +91,10 @@ async function execute({ message, questions }: z.output<typeof inputSchema>, age
       );
     }
 
+    if (!result.Questions) {
+      throw new Error("Invalid response received from askQuestion. Questions property is missing");
+    }
+
     for (const [question, answerArr] of Object.entries(result.Questions)) {
       const answer = firstOfArrayable(answerArr);
       if (answer == null) {
