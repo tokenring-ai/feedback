@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { FileSystemService } from "@tokenring-ai/filesystem";
 import { format } from "date-fns";
 import express, { type Request, type Response } from "express";
@@ -45,7 +46,7 @@ async function execute({ filePath, content, contentType }: z.output<typeof input
 
   // Validate required parameters – throw error instead of returning
   if (!filePath || !content) {
-    throw new Error(`[${name}] filePath and content are required parameters for getFileFeedback.`);
+    throw new ToolCallError(name, `filePath and content are required parameters for getFileFeedback.`);
   }
 
   // 1. Create a temp workspace
@@ -92,8 +93,8 @@ async function execute({ filePath, content, contentType }: z.output<typeof input
   // 6. Cleanup
   try {
     await fs.rm(tmpDir, { recursive: true, force: true });
-  } catch (err: unknown) {
-    agent.errorMessage(`[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error);
+  } catch (err) {
+    agent.warningMessage(`[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error);
   }
   stop();
 

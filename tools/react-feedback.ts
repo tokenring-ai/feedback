@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { FileSystemService } from "@tokenring-ai/filesystem";
 import { format } from "date-fns";
 import esbuild from "esbuild";
@@ -56,7 +57,7 @@ export interface ToolError {
 async function execute({ file, code }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   if (!code) {
     // Throw an error instead of returning an error object.
-    throw new Error(`[${name}] code is required parameter for react-feedback.`);
+    throw new ToolCallError(name, `code is required parameter for react-feedback.`);
   }
   const fileSystem = agent.requireServiceByType(FileSystemService);
   if (file == null) file = `React-Component-Preview-${new Date().toISOString()}.tsx`;

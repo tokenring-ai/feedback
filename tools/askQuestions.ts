@@ -1,6 +1,7 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TextQuestionSchema, TreeSelectQuestionSchema } from "@tokenring-ai/agent/question";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { firstOfArrayable } from "@tokenring-ai/utility/array/arrayable";
 import { z } from "zod";
 
@@ -86,13 +87,14 @@ async function execute({ message, questions }: z.output<typeof inputSchema>, age
     });
 
     if (result === null) {
-      throw new Error(
+      throw new ToolCallError(
+        name,
         "The user did not respond to the question prompt. Stop what you are doing. Do not call any more tools until the user gives you further instructions.",
       );
     }
 
     if (!result.Questions) {
-      throw new Error("Invalid response received from askQuestion. Questions property is missing");
+      throw new ToolCallError(name, "Invalid response received from askQuestion. Questions property is missing");
     }
 
     for (const [question, answerArr] of Object.entries(result.Questions)) {
