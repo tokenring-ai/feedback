@@ -289,7 +289,7 @@ This package does not require any environment variables.
 
 - `typescript` - TypeScript compiler
 - `@types/express` - Express type definitions
-- `vitest` - Testing framework
+- `bun test` - Testing framework
 
 ## Development
 
