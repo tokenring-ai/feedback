@@ -119,7 +119,10 @@ async function execute({ file, code }: z.output<typeof inputSchema>, agent: Agen
   // 7. Cleanup
   stop();
 
-  return JSON.stringify(result);
+  return {
+    message: `**Asked** for feedback`,
+    result: JSON.stringify(result),
+  };
 }
 
 function genHTML({ bundlePath }: { bundlePath: string }) {

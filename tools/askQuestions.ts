@@ -67,7 +67,11 @@ async function execute({ message, questions }: z.output<typeof inputSchema>, age
   }
 
   if (questionItems.size === 0) {
-    return "You did not provide any questions, please provide at least one question to ask the user.";
+    return {
+      failed: true,
+      message: `**Asked** no questions`,
+      result: "You did not provide any questions, please provide at least one question to ask the user.",
+    };
   }
 
   const completeResults: Record<string, string> = {};
@@ -118,9 +122,12 @@ async function execute({ message, questions }: z.output<typeof inputSchema>, age
     }
   } while (questionItems.size > 0);
 
-  return `The user has provided the following responses:\n${Object.entries(completeResults)
-    .map(([question, answer]) => `${question}\n${answer}`)
-    .join("\n\n")}`;
+  return {
+    message: `**Asked** questions`,
+    result: `The user has provided the following responses:\n${Object.entries(completeResults)
+      .map(([question, answer]) => `${question}\n${answer}`)
+      .join("\n\n")}`,
+  };
 }
 
 export default {

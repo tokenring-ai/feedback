@@ -98,12 +98,15 @@ async function execute({ filePath, content, contentType }: z.output<typeof input
   }
   stop();
 
-  return JSON.stringify({
-    status: result.accepted ? "accepted" : "rejected",
-    comment: result.comment,
-    filePath: result.accepted ? filePath : undefined,
-    rejectedFilePath: result.accepted ? undefined : filePath,
-  });
+  return {
+    message: `**Asked** For feedback`,
+    result: JSON.stringify({
+      status: result.accepted ? "accepted" : "rejected",
+      comment: result.comment,
+      filePath: result.accepted ? filePath : undefined,
+      rejectedFilePath: result.accepted ? undefined : filePath,
+    }),
+  };
 }
 
 function escapeHTML(str: string) {
