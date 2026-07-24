@@ -15,5 +15,5 @@ export default {
   install(app, _config) {
     app.waitForService(ChatService, chatService => chatService.addTools(...tools));
   },
-  config: packageConfigSchema,
+  configSchema: packageConfigSchema,
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;
