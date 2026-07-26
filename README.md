@@ -58,14 +58,12 @@ things aligned with the users intents.
 
 **Input Schema**:
 
-```yaml
-message: string - A free-form, paragraph sized message explaining the problem
-  you are facing, or the uncertainty you have about the task
-questions: array - Array of question objects
-  - question: string - A question to ask the human
-  - choices: string[] - Suggested choices for the human to select from.
-    The human can choose from any of these options or provide their own response
-```
+| Parameter        | Type   | Required | Description                                          |
+|:-----------------|:-------|:---------|:-----------------------------------------------------|
+| message          | string | Yes      | Free-form message explaining the problem or uncertainty |
+| questions        | array  | Yes      | Array of question objects                            |
+| questions[].question | string | Yes   | The specific question to ask the human               |
+| questions[].choices | string[] | Yes   | Suggested choices (empty array for freeform answer)  |
 
 **Example**:
 
@@ -89,7 +87,8 @@ const result = await askQuestions.execute({
 
 **Response Format**:
 
-Returns a formatted string with user responses.
+Returns a `TokenRingToolResult` with `message` and `result` properties. The
+`result` contains a formatted string with user responses:
 
 ```text
 The user has provided the following responses:
@@ -101,12 +100,18 @@ Should we add tests before or after?
 After implementation
 ```
 
+When no questions are provided, returns `{ failed: true }` with an error message
+indicating at least one question is required.
+
 **Error Handling**:
 
-- Throws error if user doesn't respond to question prompt
-- Returns default message if user doesn't provide answer
-- Validates that at least one question is provided
-- Supports iterative questioning - continues until all questions are answered
+- Returns `{ failed: true }` if no questions are provided
+- Throws `ToolCallError` if user does not respond to the question prompt
+- Throws `ToolCallError` if invalid response is received (missing Questions property)
+- Sets default answer ("The user did not provide an answer, use your own judgement")
+  if user provides no answer
+- Supports iterative questioning until all questions are answered
+- Handles `__other__` selection by converting to freeform text input
 
 ---
 
@@ -119,18 +124,13 @@ After implementation
 accepted. If the `contentType` is `text/markdown` or `text/x-markdown`, the
 content will be rendered as HTML for review.
 
-**Input Schema**:
+**Input Schema** (strict - rejects unknown properties):
 
-```yaml
-filePath: string - The path where the file content should be saved if accepted
-content: string - The actual text content to be reviewed
-contentType: string (optional) - The MIME type of the content.
-  Defaults to 'text/plain'. Options:
-  - 'text/plain': Plain text with HTML escaping
-  - 'text/markdown' or 'text/x-markdown': Markdown rendered to HTML
-  - 'text/html': Raw HTML content rendered in iframe
-  - 'application/json': JSON formatted with HTML escaping
-```
+| Parameter   | Type   | Required | Description                                          |
+|:------------|:-------|:---------|:-----------------------------------------------------|
+| filePath    | string | Yes      | Path where the file content should be saved if accepted |
+| content     | string | Yes      | The actual text content to be reviewed               |
+| contentType | string | No       | MIME type of the content. Defaults to `text/plain`. Options: `text/plain`, `text/markdown`, `text/x-markdown`, `text/html`, `application/json` |
 
 **Example**:
 
@@ -146,7 +146,8 @@ const result = await getFileFeedback.execute({
 
 **Response Format**:
 
-Returns a JSON string with the following structure:
+Returns a `TokenRingToolResult` where `result` is a JSON string with the
+following structure:
 
 ```json
 {
@@ -164,15 +165,26 @@ Returns a JSON string with the following structure:
 | `text/plain`       | Plain text with HTML escaping in `<pre>` tag |
 | `text/markdown`    | Markdown rendered to HTML using marked.js    |
 | `text/x-markdown`  | Markdown rendered to HTML using marked.js    |
-| `text/html`        | Raw HTML in iframe                           |
+| `text/html`        | Raw HTML content rendered in iframe          |
 | `application/json` | JSON with HTML escaping in `<pre>` tag       |
 
 **Error Handling**:
 
-- Throws error if `filePath` or `content` parameters are missing
-- Cleanup errors are logged but don't stop execution
+- Throws `ToolCallError` if `filePath` or `content` parameters are missing
+- Cleanup errors are logged as warnings but do not stop execution
 - Server startup errors are logged with fallback URL reporting
 - Rejected files are saved with `.rejected` prefix and timestamp
+
+**Exported Types**:
+
+```typescript
+export interface GetFileFeedbackResult {
+  status: "accepted" | "rejected";
+  comment?: string | undefined;
+  filePath?: string | undefined;
+  rejectedFilePath?: string | undefined;
+}
+```
 
 ---
 
@@ -184,13 +196,12 @@ Returns a JSON string with the following structure:
 allowing accept/reject with optional comments. The component is bundled using
 esbuild and rendered with React 18 from CDN.
 
-**Input Schema**:
+**Input Schema** (strict - rejects unknown properties):
 
-```yaml
-code: string - The complete source code of the React component.
-  This should be valid JSX/TSX that can be bundled and rendered in the browser
-file: string (optional) - The filename/path of the React component to be previewed
-```
+| Parameter | Type   | Required | Description                                          |
+|:----------|:-------|:---------|:-----------------------------------------------------|
+| code      | string | Yes      | Complete source code of the React component (valid JSX/TSX) |
+| file      | string | No       | Filename/path of the React component to be previewed |
 
 **Example**:
 
@@ -214,7 +225,8 @@ const result = await reactFeedback.execute({
 
 **Response Format**:
 
-Returns a JSON string with the following structure:
+Returns a `TokenRingToolResult` where `result` is a JSON string with the
+following structure:
 
 ```json
 // Accepted
@@ -231,13 +243,34 @@ Returns a JSON string with the following structure:
 - External dependencies (react, react-dom) are treated as global variables
 - Components must export a default function component
 - Temporary files are automatically cleaned up after feedback is received
+- If no `file` is provided, a default filename is generated using ISO timestamp
 
 **Error Handling**:
 
-- Throws error if `code` parameter is missing
+- Throws `ToolCallError` if `code` parameter is missing
 - Cleanup is performed after file operations
 - Server is stopped after cleanup
 - Rejected files are saved with `.rejected` prefix and timestamp
+
+**Exported Types**:
+
+```typescript
+export interface ReactFeedbackResultAccepted {
+  status: "accept";
+  comment?: string | undefined;
+}
+
+export interface ReactFeedbackResultRejected {
+  status: "reject" | "rejected";
+  comment?: string | undefined;
+}
+
+export type ReactFeedbackResult = ReactFeedbackResultAccepted | ReactFeedbackResultRejected;
+
+export interface ToolError {
+  error: string;
+}
+```
 
 ## Configuration
 
@@ -289,7 +322,6 @@ This package does not require any environment variables.
 
 - `typescript` - TypeScript compiler
 - `@types/express` - Express type definitions
-- `bun test` - Testing framework
 
 ## Development
 

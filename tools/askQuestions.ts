@@ -3,6 +3,7 @@ import type { TextQuestionSchema, TreeSelectQuestionSchema } from "@tokenring-ai
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { firstOfArrayable } from "@tokenring-ai/utility/array/arrayable";
+import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import { z } from "zod";
 
 /**
@@ -36,7 +37,7 @@ const inputSchema = z.object({
  * Returns a result object. Errors are thrown as exceptions.
  */
 async function execute({ message, questions }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const questionItems = new Map<string, z.input<typeof TreeSelectQuestionSchema> | z.input<typeof TextQuestionSchema>>();
+  const questionItems = new EnhancedMap<string, z.input<typeof TreeSelectQuestionSchema> | z.input<typeof TextQuestionSchema>>();
 
   for (const question of questions) {
     if (question.choices.length > 0) {
@@ -66,7 +67,7 @@ async function execute({ message, questions }: z.output<typeof inputSchema>, age
     }
   }
 
-  if (questionItems.size === 0) {
+  if (questionItems.empty()) {
     return {
       failed: true,
       message: `**Asked** no questions`,
@@ -84,7 +85,7 @@ async function execute({ message, questions }: z.output<typeof inputSchema>, age
         sections: [
           {
             name: "Questions",
-            fields: Object.fromEntries(questionItems.entries()),
+            fields: questionItems.toPlainObject(),
           },
         ],
       },
