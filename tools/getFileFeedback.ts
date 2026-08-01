@@ -42,7 +42,7 @@ export interface GetFileFeedbackResult {
 }
 
 async function execute({ filePath, content, contentType }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
 
   // Validate required parameters – throw error instead of returning
   if (!filePath || !content) {

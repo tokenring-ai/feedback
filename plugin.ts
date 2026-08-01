@@ -10,6 +10,6 @@ export default {
   version: packageJSON.version,
   description: packageJSON.description,
   install(app) {
-    app.waitForService(ChatService, chatService => chatService.addTools(...tools));
+    app.waitForService(ChatService, chatService => chatService.addTools(tools));
   },
 } satisfies TokenRingPlugin;

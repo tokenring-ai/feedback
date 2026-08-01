@@ -59,7 +59,7 @@ async function execute({ file, code }: z.output<typeof inputSchema>, agent: Agen
     // Throw an error instead of returning an error object.
     throw new ToolCallError(name, `code is required parameter for react-feedback.`);
   }
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
   if (file == null) file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
   // 1. Create a temp workspace
