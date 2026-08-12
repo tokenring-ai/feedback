@@ -1,17 +1,17 @@
 import fs from "node:fs/promises";
-import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { FileSystemService } from "@tokenring-ai/filesystem";
-import { format } from "date-fns";
 import esbuild from "esbuild";
 import { externalGlobalPlugin } from "esbuild-plugin-external-global";
-import express, { type Request, type Response } from "express";
 import open from "open";
 import { z } from "zod";
+import WebHostService from "../@tokenring-ai/web-host/WebHostService.ts";
+import FeedbackService from "../FeedbackService.ts";
+import { toRejectedFilePath } from "../rejectedFilePath.ts";
 
 // Export the tool name in the required "packageName/toolName" format.
 const name = "feedback_react-feedback";
@@ -28,6 +28,7 @@ const inputSchema = z
   .object({
     code: z
       .string()
+      .min(1)
       .describe(
         "The complete source code of the React component to be previewed. This should be valid JSX/TSX that can be bundled and rendered in the browser.",
       ),
@@ -41,7 +42,7 @@ export interface ReactFeedbackResultAccepted {
 }
 
 export interface ReactFeedbackResultRejected {
-  status: "reject" | "rejected";
+  status: "reject";
   comment?: string | undefined;
 }
 
@@ -55,74 +56,93 @@ export interface ToolError {
 }
 
 async function execute({ file, code }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  if (!code) {
-    // Throw an error instead of returning an error object.
-    throw new ToolCallError(name, `code is required parameter for react-feedback.`);
-  }
   const fileSystem = agent.requireService(FileSystemService);
+  const feedbackService = agent.requireService(FeedbackService);
+  const webHostService = agent.requireService(WebHostService);
   if (file == null) file = `React-Component-Preview-${new Date().toISOString()}.tsx`;
 
   // 1. Create a temp workspace
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
-  const jsxPath = path.join(tmp, file);
-  await fs.writeFile(jsxPath, code, "utf8");
+  let sessionId: string | undefined;
 
-  // 2. Bundle with esbuild
-  const bundlePath = path.join(tmp, "bundle.ts");
-  // Normalize plugins typing to the esbuild Plugin[] expected by our local esbuild
-  const plugins: esbuild.Plugin[] = [
-    externalGlobalPlugin({
-      react: "window.React",
-      "react-dom": "window.ReactDOM",
-      "react/jsx-runtime": "window.JSX",
-      jQuery: "$",
-    }),
-  ];
-
-  await esbuild.build({
-    entryPoints: [jsxPath],
-    outfile: bundlePath,
-    bundle: true,
-    jsx: "automatic",
-    platform: "browser",
-    external: ["react", "react-dom", "react/jsx-runtime"],
-    globalName: "window.App",
-    plugins,
-  });
-
-  // 3. Make index.html
-  const html = genHTML({ bundlePath: "./bundle.ts" });
-  await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
-
-  // 4. Spin up preview server
-  const { resultPromise, url, stop } = await startServer(tmp, agent);
-
-  // 5. Launch browser & await user choice
   try {
-    await open(url);
-    agent.infoMessage(`[${name}] React preview opened at: ${url}`);
-  } catch {
-    agent.infoMessage(`[${name}] React preview available at: ${url} (open command failed)`);
+    const jsxPath = path.join(tmp, file);
+    await fs.writeFile(jsxPath, code, "utf8");
+
+    // 2. Bundle with esbuild
+    const bundlePath = path.join(tmp, "bundle.js");
+    const plugins: esbuild.Plugin[] = [
+      externalGlobalPlugin({
+        react: "window.React",
+        "react-dom": "window.ReactDOM",
+        "react/jsx-runtime": "window.JSX",
+        jQuery: "$",
+      }),
+    ];
+
+    try {
+      await esbuild.build({
+        entryPoints: [jsxPath],
+        outfile: bundlePath,
+        bundle: true,
+        jsx: "automatic",
+        platform: "browser",
+        external: ["react", "react-dom", "react/jsx-runtime"],
+        globalName: "window.App",
+        plugins,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new ToolCallError(name, `Failed to bundle React component: ${detail}`);
+    }
+
+    // 3. Make index.html
+    const html = genHTML({ bundlePath: "./bundle.js" });
+    await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
+
+    // 4. Register session only after files are ready
+    const session = feedbackService.createSession(tmp);
+    sessionId = session.id;
+
+    const url = feedbackService.getSessionUrl(session.id, webHostService);
+    try {
+      await open(url);
+      agent.infoMessage(`[${name}] React preview opened at: ${url}`);
+    } catch {
+      agent.infoMessage(`[${name}] React preview available at: ${url} (open command failed)`);
+    }
+
+    let submission: { accepted: boolean; comment?: string | undefined };
+    try {
+      submission = await session.promise;
+    } catch (error) {
+      throw new ToolCallError(name, error instanceof Error ? error.message : String(error));
+    }
+
+    const result: ReactFeedbackResult = {
+      status: submission.accepted ? "accept" : "reject",
+      comment: submission.comment,
+    };
+
+    // 5. If accepted ➜ copy into repo
+    if (result.status === "accept") {
+      await fileSystem.writeFile(file, code, agent);
+    } else {
+      const rejectFile = toRejectedFilePath(file);
+      await fileSystem.writeFile(rejectFile, code, agent);
+    }
+
+    return {
+      message: `**Asked** for feedback`,
+      result: JSON.stringify(result),
+    };
+  } finally {
+    // Drop session before deleting files so concurrent requests cannot race the rm.
+    if (sessionId) {
+      feedbackService.removeSession(sessionId);
+    }
+    await fs.rm(tmp, { recursive: true, force: true });
   }
-  const result = await resultPromise;
-
-  // 6. If accepted ➜ copy into repo
-  if (result.status === "accept") {
-    await fileSystem.writeFile(file, code, agent);
-  } else {
-    const rejectFile = file.replace(/\./, `.rejected${format(new Date(), "yyyyMMdd-HH:mm")}.`);
-    await fileSystem.writeFile(rejectFile, code, agent);
-  }
-
-  await fs.rm(tmp, { recursive: true, force: true });
-
-  // 7. Cleanup
-  stop();
-
-  return {
-    message: `**Asked** for feedback`,
-    result: JSON.stringify(result),
-  };
 }
 
 function genHTML({ bundlePath }: { bundlePath: string }) {
@@ -131,11 +151,32 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
   <head>
     <meta charset="utf-8"/>
     <style>
-      body{margin-top: 6lh;font-family:sans-serif}
-      #overlay{fixed;0;0;0;flex;8px;8px;#eee;z-index:999}
-      #overlay button{6px 12px;0;border-radius:4px;pointer}
-      #commentBox{100%; min-height: 5lh; 6px;margin-top:8px}
-      #commentSubmit{#ffd37b;margin-top:8px}
+      body { margin-top: 6lh; font-family: sans-serif; }
+      #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+        background: #eee;
+        z-index: 999;
+        align-items: flex-start;
+      }
+      #overlay button {
+        padding: 6px 12px;
+        border: 0;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      #accept { background: #77dd77; }
+      #reject { background: #ff6961; }
+      #commentBox {
+        flex: 1;
+        min-height: 5lh;
+        padding: 6px;
+      }
     </style>
   </head>
   <body>
@@ -146,8 +187,8 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
     </div>
     <div id="root"></div>
 
-    <script src="https://unpkg.com/react@18/umd/react.development.ts"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.ts"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script>window.JSX = { "jsx": React.createElement, "jsxs": React.createElement};</script>
     <script src="${bundlePath}"></script>
     <script>
@@ -162,7 +203,8 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
         const submit = (accepted) => (e) => {
          e.preventDefault();
          const comment = document.getElementById('commentBox').value;
-         fetch('/result', {
+         // Relative to /feedback/:sessionId/index.html → /feedback/:sessionId/result
+         fetch('./result', {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ accepted: accepted, comment: comment })
@@ -178,34 +220,6 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
     </script>
   </body>
 </html>`;
-}
-
-async function startServer(tmpDir: string, agent: Agent) {
-  const app = express();
-  app.use("/", express.static(tmpDir));
-  let resolveResult: (value: ReactFeedbackResult) => void;
-  const resultPromise: Promise<ReactFeedbackResult> = new Promise(r => (resolveResult = r));
-  app.post("/result", (req: Request, res: Response) => {
-    let buf = "";
-    req.on("data", (c: Buffer) => (buf += c.toString()));
-    req.on("end", () => {
-      res.end("ok");
-      resolveResult(JSON.parse(buf));
-    });
-  });
-  const server = http.createServer(app);
-  await new Promise<void>(resolve => server.listen(0, () => resolve(undefined)));
-  const addr = server.address();
-  const port = typeof addr === "object" && addr && "port" in addr ? addr.port : 0;
-  const url = `http://localhost:${port}/index.html`;
-
-  // Prefix informational messages with the tool name as required.
-  agent.infoMessage(`[${name}] Preview running on ${url}`);
-  return {
-    resultPromise,
-    url,
-    stop: () => server.close(),
-  };
 }
 
 export default {

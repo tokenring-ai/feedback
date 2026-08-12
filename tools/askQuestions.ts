@@ -22,14 +22,17 @@ const description =
 
 const inputSchema = z.object({
   message: z.string().describe("A free-form, paragraph sized message, explaining the problem you are facing, or the uncertainty you have about the task."),
-  questions: z.array(
-    z.object({
-      question: z.string().describe("A question to ask the human, such as something to clarify, or to get additional information on."),
-      choices: z
-        .array(z.string())
-        .describe("Suggested choices for the human to select from. The human can choose from any of these options or provide their own response."),
-    }),
-  ),
+  questions: z
+    .array(
+      z.object({
+        question: z.string().describe("A question to ask the human, such as something to clarify, or to get additional information on."),
+        choices: z
+          .array(z.string())
+          .describe("Suggested choices for the human to select from. The human can choose from any of these options or provide their own response."),
+      }),
+    )
+    .min(1)
+    .describe("One or more questions to ask the human."),
 });
 
 /**

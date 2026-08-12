@@ -172,7 +172,7 @@ following structure:
 
 - Throws `ToolCallError` if `filePath` or `content` parameters are missing
 - Cleanup errors are logged as warnings but do not stop execution
-- Server startup errors are logged with fallback URL reporting
+- Requires a running WebHostService (shared host; no per-session server)
 - Rejected files are saved with `.rejected` prefix and timestamp
 
 **Exported Types**:
@@ -249,7 +249,7 @@ following structure:
 
 - Throws `ToolCallError` if `code` parameter is missing
 - Cleanup is performed after file operations
-- Server is stopped after cleanup
+- Feedback session is removed from WebHost after cleanup
 - Rejected files are saved with `.rejected` prefix and timestamp
 
 **Exported Types**:
@@ -298,6 +298,8 @@ This package does not require any environment variables.
 ### Required Services
 
 - **ChatService**: Required for tool registration (handled by plugin)
+- **WebHostService**: Required to serve browser feedback UIs (no per-tool HTTP servers)
+- **FeedbackService**: Registered by this plugin; manages in-flight browser sessions
 - **FileSystemService**: Required by `getFileFeedback` and `reactFeedback`
 - **Agent**: Required for logging and service access
 
@@ -310,10 +312,10 @@ This package does not require any environment variables.
 - `@tokenring-ai/agent` - Agent system and question schema
 - `@tokenring-ai/filesystem` - File system service
 - `@tokenring-ai/utility` - Utility functions
+- `@tokenring-ai/web-host` - Shared HTTP host for browser feedback UIs
 - `zod` - Schema validation
 - `esbuild` - React component bundling
 - `esbuild-plugin-external-global` - ESBuild plugin for external globals
-- `express` - Web server for preview
 - `marked` - Markdown rendering
 - `date-fns` - Date formatting
 - `open` - Browser launcher
@@ -321,7 +323,6 @@ This package does not require any environment variables.
 ### Development Dependencies
 
 - `typescript` - TypeScript compiler
-- `@types/express` - Express type definitions
 
 ## Development
 

@@ -9,16 +9,15 @@
     "@tokenring-ai/agent": "workspace:*",
     "@tokenring-ai/filesystem": "workspace:*",
     "@tokenring-ai/utility": "workspace:*",
+    "@tokenring-ai/web-host": "workspace:*",
     "esbuild": "^0.28.1",
     "esbuild-plugin-external-global": "^1.0.1",
-    "express": "^5.2.1",
     "marked": "^18.0.6",
     "date-fns": "^4.4.0",
     "open": "^11.0.0"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
-    "@types/express": "^5.0.6"
+    "typescript": "^7.0.2"
   },
   "exports": {
     ".": "./index.ts",

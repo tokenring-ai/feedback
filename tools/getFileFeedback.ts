@@ -1,16 +1,16 @@
 import fs from "node:fs/promises";
-import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { FileSystemService } from "@tokenring-ai/filesystem";
-import { format } from "date-fns";
-import express, { type Request, type Response } from "express";
 import { marked } from "marked";
 import open from "open";
 import { z } from "zod";
+import WebHostService from "../@tokenring-ai/web-host/WebHostService.ts";
+import FeedbackService from "../FeedbackService.ts";
+import { toRejectedFilePath } from "../rejectedFilePath.ts";
 
 // Tool name export as required
 const name = "feedback_getFileFeedback";
@@ -23,8 +23,8 @@ const description =
 
 const inputSchema = z
   .object({
-    filePath: z.string().describe("The path where the file content should be saved if accepted."),
-    content: z.string().describe("The actual text content to be reviewed."),
+    filePath: z.string().min(1).describe("The path where the file content should be saved if accepted."),
+    content: z.string().min(1).describe("The actual text content to be reviewed."),
     contentType: z
       .string()
       .describe(
@@ -43,70 +43,87 @@ export interface GetFileFeedbackResult {
 
 async function execute({ filePath, content, contentType }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
-
-  // Validate required parameters – throw error instead of returning
-  if (!filePath || !content) {
-    throw new ToolCallError(name, `filePath and content are required parameters for getFileFeedback.`);
-  }
+  const feedbackService = agent.requireService(FeedbackService);
+  const webHostService = agent.requireService(WebHostService);
 
   // 1. Create a temp workspace
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), TMP_PREFIX));
+  let sessionId: string | undefined;
 
-  // Define user content file name for text/html scenario
-  const userContentFileName = "user_content.html";
-
-  // If contentType is text/html, write the content to user_content.html
-  if (contentType === "text/html") {
-    await fs.writeFile(path.join(tmpDir, userContentFileName), content, "utf8");
-  }
-
-  // 2. Make an index.html file for the review UI
-  const indexHtmlContent = genFileViewHTML({
-    contentString: content,
-    contentType,
-    htmlContentPath: contentType === "text/html" ? `./${userContentFileName}` : undefined,
-  });
-  await fs.writeFile(path.join(tmpDir, "index.html"), indexHtmlContent, "utf8");
-
-  // 3. Spin up preview server
-  const { resultPromise, url, stop } = await startFileReviewServer(tmpDir, agent);
-
-  // 4. Launch browser & await user choice
   try {
-    await open(url);
-    agent.infoMessage(`[${name}] File review UI opened at: ${url}`);
-  } catch {
-    agent.infoMessage(`[${name}] File review UI available at: ${url} (open command mocked/unavailable)`);
-  }
-  const result: { accepted: boolean; comment?: string | undefined } = await resultPromise;
+    // Define user content file name for text/html scenario
+    const userContentFileName = "user_content.html";
 
-  // 5. If accepted ➜ copy into repo
-  if (result.accepted) {
-    await fileSystem.writeFile(filePath, content, agent);
-    agent.infoMessage(`[${name}] Feedback accepted. Content written to ${filePath}`);
-  } else {
-    const rejectFile = filePath.replace(/(\.[^.]+)$|$/, `.rejected${format(new Date(), "yyyyMMdd-HHmmss")}$1`);
+    // If contentType is text/html, write the content to user_content.html
+    if (contentType === "text/html") {
+      await fs.writeFile(path.join(tmpDir, userContentFileName), content, "utf8");
+    }
+
+    // 2. Make an index.html file for the review UI
+    const indexHtmlContent = genFileViewHTML({
+      contentString: content,
+      contentType,
+      htmlContentPath: contentType === "text/html" ? `./${userContentFileName}` : undefined,
+    });
+    await fs.writeFile(path.join(tmpDir, "index.html"), indexHtmlContent, "utf8");
+
+    // 3. Register session only after files are ready (avoids hanging waiters on setup failure)
+    const session = feedbackService.createSession(tmpDir);
+    sessionId = session.id;
+
+    const url = feedbackService.getSessionUrl(session.id, webHostService);
+    try {
+      await open(url);
+      agent.infoMessage(`[${name}] File review UI opened at: ${url}`);
+    } catch {
+      agent.infoMessage(`[${name}] File review UI available at: ${url} (open command mocked/unavailable)`);
+    }
+
+    let result: { accepted: boolean; comment?: string | undefined };
+    try {
+      result = await session.promise;
+    } catch (error) {
+      throw new ToolCallError(name, error instanceof Error ? error.message : String(error));
+    }
+
+    agent.infoMessage(`[${name}] Feedback received: ${result.accepted ? "Accepted" : "Rejected"}${result.comment ? " with comment: " + result.comment : ""}`);
+
+    // 4. If accepted ➜ copy into repo
+    if (result.accepted) {
+      await fileSystem.writeFile(filePath, content, agent);
+      agent.infoMessage(`[${name}] Feedback accepted. Content written to ${filePath}`);
+      return {
+        message: `**Asked** For feedback`,
+        result: JSON.stringify({
+          status: "accepted",
+          comment: result.comment,
+          filePath,
+        } satisfies GetFileFeedbackResult),
+      };
+    }
+
+    const rejectFile = toRejectedFilePath(filePath);
     await fileSystem.writeFile(rejectFile, content, agent);
     agent.infoMessage(`[${name}] Feedback rejected. Content written to ${rejectFile}`);
-  }
 
-  // 6. Cleanup
-  try {
-    await fs.rm(tmpDir, { recursive: true, force: true });
-  } catch (err) {
-    agent.warningMessage(`[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error);
+    return {
+      message: `**Asked** For feedback`,
+      result: JSON.stringify({
+        status: "rejected",
+        comment: result.comment,
+        rejectedFilePath: rejectFile,
+      } satisfies GetFileFeedbackResult),
+    };
+  } finally {
+    if (sessionId) {
+      feedbackService.removeSession(sessionId);
+    }
+    try {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    } catch (err) {
+      agent.warningMessage(`[${name}] Error cleaning up temporary directory ${tmpDir}`, err as Error);
+    }
   }
-  stop();
-
-  return {
-    message: `**Asked** For feedback`,
-    result: JSON.stringify({
-      status: result.accepted ? "accepted" : "rejected",
-      comment: result.comment,
-      filePath: result.accepted ? filePath : undefined,
-      rejectedFilePath: result.accepted ? undefined : filePath,
-    }),
-  };
 }
 
 function escapeHTML(str: string) {
@@ -133,10 +150,14 @@ function genFileViewHTML({
   let effectiveContentType = contentType;
 
   if (contentType === "text/markdown" || contentType === "text/x-markdown") {
-    const rawMarkup = marked.parse(contentString, { async: false });
-    displayContentHtml = `<div class="markdown-body" style="padding:10px; border:1px solid #ccc; min-height:50vh;">${rawMarkup}</div>`;
+    // marked types include Promise, but `{ async: false }` returns a string synchronously.
+    const parsed = marked.parse(contentString, { async: false });
+    if (typeof parsed !== "string") {
+      throw new Error("Expected synchronous markdown parse result");
+    }
+    displayContentHtml = `<div class="markdown-body" style="padding:10px; border:1px solid #ccc; min-height:50vh;">${parsed}</div>`;
   } else if (contentType === "text/html") {
-    displayContentHtml = `<iframe src="${htmlContentPath}" style="width:100%; height:80vh; border:1px solid #ccc;"></iframe>`;
+    displayContentHtml = `<iframe src="${escapeHTML(htmlContentPath ?? "")}" style="width:100%; height:80vh; border:1px solid #ccc;"></iframe>`;
   } else if (contentType === "application/json") {
     displayContentHtml = `<pre style="white-space: pre-wrap; word-wrap: break-word; border:1px solid #ccc; padding:10px; min-height:50vh;">${escapeHTML(contentString)}</pre>`;
   } else {
@@ -173,7 +194,7 @@ function genFileViewHTML({
       <textarea id="commentBox" placeholder="Enter your comments here..."></textarea>
     </div>
     <div id="content-display">
-      <h3>Reviewing Content (Type: ${effectiveContentType})</h3>
+      <h3>Reviewing Content (Type: ${escapeHTML(effectiveContentType)})</h3>
       ${displayContentHtml}
     </div>
     <script>
@@ -184,7 +205,8 @@ function genFileViewHTML({
         const submitFeedback = (accepted) => (e) => {
          e.preventDefault();
          const comment = document.getElementById('commentBox').value;
-         fetch('/result', {
+         // Relative to /feedback/:sessionId/index.html → /feedback/:sessionId/result
+         fetch('./result', {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ accepted: accepted, comment: comment })
@@ -204,39 +226,6 @@ function genFileViewHTML({
     </script>
   </body>
 </html>`;
-}
-
-async function startFileReviewServer(tmpDir: string, agent: Agent) {
-  const app = express();
-  app.use(express.json());
-  app.use("/", express.static(tmpDir));
-
-  let resolveResult: (value: { accepted: boolean; comment?: string | undefined }) => void;
-  const resultPromise: Promise<{ accepted: boolean; comment?: string | undefined }> = new Promise(r => (resolveResult = r));
-
-  app.post("/result", (req: Request, res: Response) => {
-    const { accepted, comment } = req.body as {
-      accepted: boolean;
-      comment?: string;
-    };
-    res.status(200).send("ok");
-    resolveResult({ accepted, comment });
-    agent.infoMessage(`[${name}] Feedback received: ${accepted ? "Accepted" : "Rejected"}${comment ? " with comment: " + comment : ""}`);
-  });
-
-  const server = http.createServer(app);
-  await new Promise<void>(resolve => server.listen(0, () => resolve()));
-
-  const address = server.address();
-  const port = typeof address === "string" ? 0 : (address?.port ?? 0);
-  const url = `http://localhost:${port}/index.html`;
-  agent.infoMessage(`[${name}] File review server running. Please navigate to: ${url}`);
-
-  return {
-    resultPromise,
-    url,
-    stop: () => server.close(() => agent.infoMessage(`[${name}] File review server stopped.`)),
-  };
 }
 
 export default {
