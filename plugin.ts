@@ -1,6 +1,6 @@
 import type { TokenRingPlugin } from "@tokenring-ai/app";
 import { ChatService } from "@tokenring-ai/chat";
-import { WebHostService } from "@tokenring-ai/web-host/index.ts";
+import { WebHostService } from "@tokenring-ai/web-host";
 import FeedbackResource from "./FeedbackResource.ts";
 import FeedbackService from "./FeedbackService.ts";
 import packageJSON from "./package.json" with { type: "json" };
