@@ -8,7 +8,7 @@ import { FileSystemService } from "@tokenring-ai/filesystem";
 import { marked } from "marked";
 import open from "open";
 import { z } from "zod";
-import WebHostService from "../@tokenring-ai/web-host/WebHostService.ts";
+import WebHostService from "@tokenring-ai/web-host/WebHostService";
 import FeedbackService from "../FeedbackService.ts";
 import { toRejectedFilePath } from "../rejectedFilePath.ts";
 
