@@ -1,7 +1,7 @@
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { WebResource } from "@tokenring-ai/web-host/types.ts";
+import type { WebResource } from "@tokenring-ai/web-host/types";
 import type FeedbackService from "./FeedbackService.ts";
 import { FEEDBACK_PATH_PREFIX } from "./FeedbackService.ts";
 
@@ -66,10 +66,13 @@ export default class FeedbackResource implements WebResource {
       }
 
       const comment = typeof body.comment === "string" ? body.comment : undefined;
-      this.feedbackService.completeSession(parsed.sessionId, {
+      const completed = this.feedbackService.completeSession(parsed.sessionId, {
         accepted: body.accepted,
         comment,
       });
+      if (!completed) {
+        return new Response("Session already completed or timed out", { status: 409 });
+      }
 
       return new Response("ok", {
         status: 200,

@@ -1,5 +1,7 @@
 # @tokenring-ai/feedback
 
+Interactive tools for gathering human input and reviewing agent proposals.
+
 ## Overview
 
 The `@tokenring-ai/feedback` package provides interactive tools for gathering
@@ -11,7 +13,13 @@ present information to users, and collect feedback through three mechanisms:
 - Browser-based file content review
 - React component previews
 
-## Key Features
+The browser-based tools serve their preview UIs through a shared
+`WebHostService` rather than spinning up per-request HTTP servers. A
+`FeedbackService` manages in-flight browser sessions, and a `FeedbackResource`
+registered on the web host serves static files and collects accept/reject
+submissions.
+
+### Key Features
 
 - **Interactive Questioning**: Ask humans multiple questions via chat with
   support for text responses or multiple-choice options
@@ -19,7 +27,10 @@ present information to users, and collect feedback through three mechanisms:
   in browser UIs for approval/reject with comments
 - **React Component Preview**: Bundle and preview React components in browsers
   for visual feedback and approval
-- **Seamless Integration**: Automatically registers with Token Ring applications
+- **Shared WebHost Integration**: Browser UIs are served from the shared
+  `WebHostService` via `FeedbackResource` — no per-session HTTP servers
+- **Session Timeout**: Browser feedback sessions time out after 5 minutes by
+  default (configurable per session)
 - **Auto-Cleanup**: Automatic cleanup of temporary files and directories
 - **Type-Safe**: Full TypeScript support with Zod schema validation
 
@@ -29,41 +40,41 @@ present information to users, and collect feedback through three mechanisms:
 bun add @tokenring-ai/feedback
 ```
 
-## Features
+## Chat Commands
 
-- Interactive chat-based questioning with form inputs
-- Browser-based file content review with accept/reject functionality
-- React component preview with bundling and rendering
-- Support for multiple content types (plain text, Markdown, HTML, JSON)
-- Automatic temporary file management and cleanup
-- Integration with Token Ring agent system
+This package does not define any chat commands. Tools are invoked through the
+`ChatService` tool-calling mechanism, not through slash commands.
 
 ## Tools
 
-| Tool Name                    | Display Name               | Description                      |
-|:-----------------------------|:---------------------------|:---------------------------------|
-| `ask_questions`              | `Feedback/askQuestions`    | Ask questions via chat           |
-| `feedback_getFileFeedback`   | `Feedback/getFileFeedback` | Get feedback on file content     |
-| `feedback_react-feedback`    | `Feedback/react-feedback`  | Get feedback on React components |
+| Tool Name                  | Display Name               | Description                                                                                                     |
+|----------------------------|----------------------------|-----------------------------------------------------------------------------------------------------------------|
+| `ask_questions`            | `Feedback/askQuestions`    | Ask questions via chat with form inputs                                                                         |
+| `feedback_getFileFeedback` | `Feedback/getFileFeedback` | Present file content for review and solicit accept/reject feedback                                               |
+| `feedback_react-feedback`  | `Feedback/react-feedback`  | Show a React component in a browser for accept/reject feedback                                                   |
 
 ### Feedback/askQuestions
 
 **Tool Name**: `ask_questions`
 
-**Description**: Ask questions to users via chat when feedback is necessary or
-when uncertain about the proper path to complete a task. If there is uncertainty
-about the task to be completed, or you are worried about doing something
-incorrectly, use this tool, as it provides a strong guarantee that you are doing
-things aligned with the users intents.
+**Description**: The ask_questions tool is to be called when feedback from the
+user is necessary, or when you are unsure or uncertain about the proper path to
+take, or are unsure about how to complete the task the user has given. If there
+is uncertainty about the task to be completed, or you are worried about doing
+something incorrectly, use this tool, as it provides a strong guarantee that you
+are doing things aligned with the users intents. You can ask one or more
+questions, and you can also provide choices for the user to choose from for each
+one. The user will either pick one of these choices, or respond with their own
+answer if none of the options are aligned with their intent.
 
 **Input Schema**:
 
-| Parameter        | Type   | Required | Description                                          |
-|:-----------------|:-------|:---------|:-----------------------------------------------------|
-| message          | string | Yes      | Free-form message explaining the problem or uncertainty |
-| questions        | array  | Yes      | Array of question objects                            |
-| questions[].question | string | Yes   | The specific question to ask the human               |
-| questions[].choices | string[] | Yes   | Suggested choices (empty array for freeform answer)  |
+| Parameter               | Type     | Required | Description                                                                  |
+|:------------------------|:---------|:---------|:-----------------------------------------------------------------------------|
+| `message`               | string   | Yes      | Free-form, paragraph-sized message explaining the problem or uncertainty      |
+| `questions`             | array    | Yes      | One or more questions to ask the human (minimum 1)                            |
+| `questions[].question`  | string   | Yes      | A question to ask the human                                                  |
+| `questions[].choices`   | string[] | Yes      | Suggested choices for the human to select from (empty array for freeform)      |
 
 **Example**:
 
@@ -75,13 +86,13 @@ const result = await askQuestions.execute({
   questions: [
     {
       question: "Which refactoring method do you prefer?",
-      choices: ["Extract to separate module", "Inline functions", "Keep as-is"]
+      choices: ["Extract to separate module", "Inline functions", "Keep as-is"],
     },
     {
       question: "Should we add tests before or after?",
-      choices: [] // Freeform answer
-    }
-  ]
+      choices: [], // Freeform answer
+    },
+  ],
 }, agent);
 ```
 
@@ -107,9 +118,10 @@ indicating at least one question is required.
 
 - Returns `{ failed: true }` if no questions are provided
 - Throws `ToolCallError` if user does not respond to the question prompt
-- Throws `ToolCallError` if invalid response is received (missing Questions property)
-- Sets default answer ("The user did not provide an answer, use your own judgement")
-  if user provides no answer
+- Throws `ToolCallError` if invalid response is received (missing `Questions`
+  property)
+- Sets default answer (`"The user did not provide an answer, use your own
+  judgement"`) if user provides no answer
 - Supports iterative questioning until all questions are answered
 - Handles `__other__` selection by converting to freeform text input
 
@@ -119,18 +131,29 @@ indicating at least one question is required.
 
 **Tool Name**: `feedback_getFileFeedback`
 
-**Description**: Present file content to the user for review, solicit feedback
-(accept/reject with comments), and optionally write content to a file if
-accepted. If the `contentType` is `text/markdown` or `text/x-markdown`, the
-content will be rendered as HTML for review.
+**Description**: This tool allows you to present the content of a file to the
+user, solicit feedback (accept/reject with comments), and optionally write the
+content to a specified file path if accepted. If the `contentType` is
+`text/markdown` or `text/x-markdown`, the content will be rendered as HTML for
+review.
 
-**Input Schema** (strict - rejects unknown properties):
+**Input Schema** (strict — rejects unknown properties):
 
-| Parameter   | Type   | Required | Description                                          |
-|:------------|:-------|:---------|:-----------------------------------------------------|
-| filePath    | string | Yes      | Path where the file content should be saved if accepted |
-| content     | string | Yes      | The actual text content to be reviewed               |
-| contentType | string | No       | MIME type of the content. Defaults to `text/plain`. Options: `text/plain`, `text/markdown`, `text/x-markdown`, `text/html`, `application/json` |
+| Parameter     | Type   | Required | Default       | Description                                                                         |
+|:--------------|:-------|:---------|:--------------|:-----------------------------------------------------------------------------------|
+| `filePath`    | string | Yes      | —             | Path where the file content should be saved if accepted (minimum length 1)          |
+| `content`     | string | Yes      | —             | The actual text content to be reviewed (minimum length 1)                           |
+| `contentType` | string | No       | `text/plain`  | MIME type of the content; controls browser rendering                                |
+
+**Supported Content Types**:
+
+| Content Type       | Rendering Method                             |
+|:-------------------|:---------------------------------------------|
+| `text/plain`       | Plain text with HTML escaping in `<pre>` tag |
+| `text/markdown`    | Markdown rendered to HTML using marked.js    |
+| `text/x-markdown`  | Markdown rendered to HTML using marked.js    |
+| `text/html`        | Raw HTML content rendered in iframe          |
+| `application/json` | JSON with HTML escaping in `<pre>` tag       |
 
 **Example**:
 
@@ -140,7 +163,7 @@ import getFileFeedback from "@tokenring-ai/feedback/tools/getFileFeedback";
 const result = await getFileFeedback.execute({
   filePath: "docs/sample.md",
   content: "# Sample\n\nThis is **bold** text and `code`.",
-  contentType: "text/markdown"
+  contentType: "text/markdown",
 }, agent);
 ```
 
@@ -158,21 +181,11 @@ following structure:
 }
 ```
 
-**Supported Content Types**:
-
-| Content Type       | Rendering Method                             |
-|:-------------------|:---------------------------------------------|
-| `text/plain`       | Plain text with HTML escaping in `<pre>` tag |
-| `text/markdown`    | Markdown rendered to HTML using marked.js    |
-| `text/x-markdown`  | Markdown rendered to HTML using marked.js    |
-| `text/html`        | Raw HTML content rendered in iframe          |
-| `application/json` | JSON with HTML escaping in `<pre>` tag       |
-
 **Error Handling**:
 
-- Throws `ToolCallError` if `filePath` or `content` parameters are missing
+- Throws `ToolCallError` if the session promise rejects (e.g. timeout)
 - Cleanup errors are logged as warnings but do not stop execution
-- Requires a running WebHostService (shared host; no per-session server)
+- Requires a running `WebHostService` (shared host; no per-session server)
 - Rejected files are saved with `.rejected` prefix and timestamp
 
 **Exported Types**:
@@ -192,16 +205,17 @@ export interface GetFileFeedbackResult {
 
 **Tool Name**: `feedback_react-feedback`
 
-**Description**: Show a React component in a browser window for user feedback,
-allowing accept/reject with optional comments. The component is bundled using
-esbuild and rendered with React 18 from CDN.
+**Description**: This tool lets you solicit feedback from the user, by opening a
+browser window, where you can show them an HTML document (formatted in jsx, to
+be rendered via react), and then allows them to accept or reject the document,
+and optionally add comments, which are then returned to you as a result.
 
-**Input Schema** (strict - rejects unknown properties):
+**Input Schema** (strict — rejects unknown properties):
 
-| Parameter | Type   | Required | Description                                          |
-|:----------|:-------|:---------|:-----------------------------------------------------|
-| code      | string | Yes      | Complete source code of the React component (valid JSX/TSX) |
-| file      | string | No       | Filename/path of the React component to be previewed |
+| Parameter | Type   | Required | Description                                                                |
+|:----------|:-------|:---------|:---------------------------------------------------------------------------|
+| `code`    | string | Yes      | Complete source code of the React component (valid JSX/TSX, minimum length 1) |
+| `file`    | string | No       | Filename/path of the React component to be previewed                       |
 
 **Example**:
 
@@ -214,12 +228,11 @@ const result = await reactFeedback.execute({
       return (
         <div style={{ padding: '20px' }}>
           <h1>Hello, Feedback!</h1>
-          <p>This is a React component preview.</p>
         </div>
       );
     }
   `,
-  file: "src/components/MyComponent.tsx"
+  file: "src/components/MyComponent.tsx",
 }, agent);
 ```
 
@@ -240,16 +253,18 @@ following structure:
 
 - Components are bundled using esbuild with JSX automatic transformation
 - React and React DOM are loaded from unpkg CDN (version 18)
-- External dependencies (react, react-dom) are treated as global variables
+- External dependencies (react, react-dom, react/jsx-runtime, jQuery) are
+  treated as global variables
 - Components must export a default function component
 - Temporary files are automatically cleaned up after feedback is received
 - If no `file` is provided, a default filename is generated using ISO timestamp
 
 **Error Handling**:
 
-- Throws `ToolCallError` if `code` parameter is missing
+- Throws `ToolCallError` if the esbuild bundling fails
+- Throws `ToolCallError` if the session promise rejects (e.g. timeout)
 - Cleanup is performed after file operations
-- Feedback session is removed from WebHost after cleanup
+- Feedback session is removed from `FeedbackService` after cleanup
 - Rejected files are saved with `.rejected` prefix and timestamp
 
 **Exported Types**:
@@ -261,11 +276,13 @@ export interface ReactFeedbackResultAccepted {
 }
 
 export interface ReactFeedbackResultRejected {
-  status: "reject" | "rejected";
+  status: "reject";
   comment?: string | undefined;
 }
 
-export type ReactFeedbackResult = ReactFeedbackResultAccepted | ReactFeedbackResultRejected;
+export type ReactFeedbackResult =
+  | ReactFeedbackResultAccepted
+  | ReactFeedbackResultRejected;
 
 export interface ToolError {
   error: string;
@@ -274,78 +291,220 @@ export interface ToolError {
 
 ## Configuration
 
-The package uses a minimal configuration schema that accepts no custom
-configuration options.
+The plugin accepts no configuration options. It has no `configSchema` and its
+`install` method takes no config parameter.
 
 ### Plugin Registration
 
 ```typescript
 import TokenRingApp from "@tokenring-ai/app";
+import PluginManager from "@tokenring-ai/app/PluginManager";
 import feedbackPlugin from "@tokenring-ai/feedback/plugin";
 
-const app = new TokenRingApp();
-app.install(feedbackPlugin);
+const app = new TokenRingApp({
+  app: { workingDirectory, workspaceDirectory, configDirectories },
+});
+const pluginManager = app.addService(new PluginManager(app));
+await pluginManager.installPlugins([feedbackPlugin]);
 
 // Tools are now available via the chat service
 ```
 
-The plugin automatically registers all tools with the ChatService upon installation.
-
-### Environment Variables
-
-This package does not require any environment variables.
+The plugin automatically registers all tools with the `ChatService`, registers
+a `FeedbackService` for session management, and registers a `FeedbackResource`
+on the `WebHostService` upon installation.
 
 ### Required Services
 
 - **ChatService**: Required for tool registration (handled by plugin)
-- **WebHostService**: Required to serve browser feedback UIs (no per-tool HTTP servers)
-- **FeedbackService**: Registered by this plugin; manages in-flight browser sessions
-- **FileSystemService**: Required by `getFileFeedback` and `reactFeedback`
+- **WebHostService**: Required to serve browser feedback UIs via
+  `FeedbackResource`
+- **FeedbackService**: Registered by this plugin; manages in-flight browser
+  sessions
+- **FileSystemService**: Required by `getFileFeedback` and `react-feedback`
 - **Agent**: Required for logging and service access
+
+## Core Components
+
+### FeedbackService
+
+Manages in-flight browser feedback sessions. HTTP is served by
+`FeedbackResource` on the shared `WebHostService` (not a per-session HTTP
+server).
+
+**File**: `plugin/feedback/FeedbackService.ts`
+
+**Service name**: `FeedbackService`
+
+**Service description**: `Browser-based human feedback sessions served via WebHost`
+
+**Exports**:
+
+- `FEEDBACK_PATH_PREFIX` — URL path prefix: `"/feedback"`
+- `DEFAULT_FEEDBACK_TIMEOUT_MS` — default timeout: `300_000` (5 minutes)
+- `FeedbackSubmission` — `{ accepted: boolean; comment?: string | undefined }`
+- `CreateSessionOptions` — `{ timeoutMs?: number | undefined }`
+- `FeedbackSession` — session object (see below)
+
+**Methods**:
+
+| Method                                                                 | Description                                                                                          |
+|:----------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------|
+| `createSession(rootDir: string, options?: CreateSessionOptions): FeedbackSession` | Create a new session with a random UUID, optional timeout, and a deferred promise            |
+| `getSession(id: string): FeedbackSession \| undefined`                 | Retrieve a session by ID                                                                             |
+| `completeSession(id: string, result: FeedbackSubmission): boolean`     | Resolve a session's promise with the submission result; returns `true` if the session existed       |
+| `removeSession(id: string, reason?: Error): void`                      | Remove a session; rejects its promise if not yet settled (prevents hanging waiters)                  |
+| `getSessionUrl(sessionId: string, webHost: WebHostService, entry: string = "index.html"): string` | Build the public browser URL for a session entry page; maps `0.0.0.0` to `127.0.0.1`      |
+
+**FeedbackSession properties**:
+
+| Property  | Type                              | Description                                                        |
+|:----------|:----------------------------------|:-------------------------------------------------------------------|
+| `id`      | string                            | Unique session identifier (UUID)                                   |
+| `rootDir` | string                            | Root directory for static file serving                             |
+| `promise` | `Promise<FeedbackSubmission>`     | Deferred promise that resolves on feedback or rejects on timeout   |
+| `resolve` | `(result: FeedbackSubmission) => void` | Resolve function (guarded against double-settle)              |
+| `reject`  | `(error: Error) => void`          | Reject function (guarded against double-settle)                    |
+| `settled` | boolean                           | Whether the session has been resolved or rejected                  |
+
+### FeedbackResource
+
+A `WebResource` implementation that serves browser feedback UIs and collects
+accept/reject submissions on the shared `WebHostService`.
+
+**File**: `plugin/feedback/FeedbackResource.ts`
+
+**Routes**:
+
+| Route                                | Methods    | Description                                                                                |
+|:-------------------------------------|:-----------|:-------------------------------------------------------------------------------------------|
+| `/feedback/:sessionId/result`        | POST       | Accepts `{ accepted: boolean, comment?: string }` JSON body; completes the session         |
+| `/feedback/:sessionId/*`             | GET, HEAD  | Serves static files from the session's `rootDir` with path traversal protection            |
+
+The POST `/result` route returns `405` for non-POST methods, `404` for unknown
+sessions, `400` for invalid JSON or missing `accepted` field, and `200` on
+success. The GET/HEAD wildcard route returns `405` for non-GET/HEAD methods,
+`400` for undecodable paths, `404` for unknown sessions or non-file targets,
+and `403` if the resolved path escapes the session root.
+
+### rejectedFilePath
+
+Utility function for building Windows-safe rejected-file sibling paths.
+
+**File**: `plugin/feedback/rejectedFilePath.ts`
+
+```typescript
+export function toRejectedFilePath(filePath: string, now: Date = new Date()): string
+```
+
+Inserts `.rejected<yyyyMMdd-HHmmss>` before the final extension (or at the end
+if no extension). The timestamp uses no colons for Windows compatibility.
+
+**Examples**:
+
+- `docs/sample.md` becomes `docs/sample.rejected20240115-143022.md`
+- `my.component.tsx` becomes `my.component.rejected20240115-143022.tsx`
+- `README` becomes `README.rejected20240115-143022`
+
+## Services / Lifecycle Methods
+
+The plugin registers a single service at install time:
+
+```typescript
+const feedbackService = app.addService(new FeedbackService());
+```
+
+The `FeedbackService` implements the `TokenRingService` interface. It has no
+`run`, `start`, `stop`, `attach`, or other lifecycle methods — it is a
+session registry used by the tools and the `FeedbackResource`.
+
+### Plugin Lifecycle
+
+The plugin (`plugin/feedback/plugin.ts`) defines `install` only. It has no
+`configSchema`, no `reconfigure`, and no agent lifecycle hooks.
+
+| Field          | Value                                                  |
+|:---------------|:-------------------------------------------------------|
+| `name`         | `@tokenring-ai/feedback` (from `package.json`)         |
+| `displayName`  | `Human Feedback`                                       |
+| `version`      | package version                                        |
+| `description`  | package description                                    |
+
+**`install(app)` steps**:
+
+1. Registers `FeedbackService` via `app.addService(new FeedbackService())`.
+2. Waits for `ChatService` and adds all three tools via
+   `chatService.addTools(tools)`.
+3. Waits for `WebHostService` via `app.services.waitForItemByType` and
+   registers `FeedbackResource` under the resource name `"feedback"`.
+
+```typescript
+import type { TokenRingPlugin } from "@tokenring-ai/app";
+import { ChatService } from "@tokenring-ai/chat";
+import { WebHostService } from "@tokenring-ai/web-host";
+import FeedbackResource from "./FeedbackResource.ts";
+import FeedbackService from "./FeedbackService.ts";
+import packageJSON from "./package.json" with { type: "json" };
+import tools from "./tools.ts";
+
+export default {
+  name: packageJSON.name,
+  displayName: "Human Feedback",
+  version: packageJSON.version,
+  description: packageJSON.description,
+  install(app) {
+    const feedbackService = app.addService(new FeedbackService());
+    app.waitForService(ChatService, chatService => chatService.addTools(tools));
+    app.services.waitForItemByType(WebHostService, webHostService => {
+      webHostService.registerResource("feedback", new FeedbackResource(feedbackService));
+    });
+  },
+} satisfies TokenRingPlugin;
+```
+
+## RPC
+
+This package does not define any RPC endpoints.
 
 ## Dependencies
 
-### Runtime Dependencies
+| Package                              | Purpose                                                        |
+|:-------------------------------------|:---------------------------------------------------------------|
+| `@tokenring-ai/app`                  | Plugin and service interfaces (`TokenRingPlugin`, `TokenRingService`) |
+| `@tokenring-ai/chat`                 | Chat service for tool registration and tool types              |
+| `@tokenring-ai/agent`                | Agent framework and question schema types                      |
+| `@tokenring-ai/filesystem`           | File system service for writing accepted/rejected content      |
+| `@tokenring-ai/utility`              | `firstOfArrayable` and `EnhancedMap` utilities            |
+| `@tokenring-ai/web-host`             | Shared HTTP host for browser feedback UIs (`WebHostService`)   |
+| `zod`                                | Schema validation for tool inputs                              |
+| `esbuild`                            | React component bundling                                       |
+| `esbuild-plugin-external-global`     | ESBuild plugin for externalizing React/jQuery as globals       |
+| `marked`                             | Markdown rendering to HTML for file review                     |
+| `date-fns`                           | Date formatting for rejected-file timestamps                   |
+| `open`                               | Browser launcher                                               |
 
-- `@tokenring-ai/app` - Base application framework
-- `@tokenring-ai/chat` - Chat service
-- `@tokenring-ai/agent` - Agent system and question schema
-- `@tokenring-ai/filesystem` - File system service
-- `@tokenring-ai/utility` - Utility functions
-- `@tokenring-ai/web-host` - Shared HTTP host for browser feedback UIs
-- `zod` - Schema validation
-- `esbuild` - React component bundling
-- `esbuild-plugin-external-global` - ESBuild plugin for external globals
-- `marked` - Markdown rendering
-- `date-fns` - Date formatting
-- `open` - Browser launcher
+The package's only development dependency is `typescript` (for `tsc --noEmit`
+type checking in the `build` script).
 
-### Development Dependencies
-
-- `typescript` - TypeScript compiler
-
-## Development
-
-### Building
+## Testing
 
 ```bash
-# Build the package TypeScript files (no Emit)
-bun run build
+bun test              # run all tests
+bun test --watch      # run tests in watch mode
+bun test --coverage   # run tests with coverage report
+bun run build         # type-check with tsc --noEmit
 ```
 
-### Testing
+The `bun.config.ts` test configuration targets `**/*.test.ts` in a node
+environment. The package ships three test suites:
 
-```bash
-# Run tests
-bun run test
-
-# Run tests in watch mode
-bun run test:watch
-
-# Run tests with coverage
-bun run test:coverage
-```
+- `FeedbackService.test.ts` — session creation, completion, timeout rejection,
+  double-complete guards, and removal with pending-waiter rejection.
+- `FeedbackResource.test.ts` — static file serving, path traversal protection,
+  POST `/result` session completion, and 404 for unknown sessions.
+- `rejectedFilePath.test.ts` — stamp insertion for single/multi-dot extensions,
+  extensionless files, and Windows-safe (no-colon) output.
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License — see LICENSE file for details.

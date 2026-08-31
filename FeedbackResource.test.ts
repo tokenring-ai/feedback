@@ -69,6 +69,30 @@ describe("FeedbackResource", () => {
     expect(result).toEqual({ accepted: true, comment: "looks good" });
   });
 
+  it("returns 409 when the session was already completed", async () => {
+    const handler = getRouteHandler(resource, `${FEEDBACK_PATH_PREFIX}/:sessionId/result`);
+    const body = JSON.stringify({ accepted: true, comment: "first" });
+
+    const first = await handler(
+      new Request(`http://127.0.0.1${FEEDBACK_PATH_PREFIX}/${sessionId}/result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      }),
+    );
+    expect(first.status).toBe(200);
+
+    const second = await handler(
+      new Request(`http://127.0.0.1${FEEDBACK_PATH_PREFIX}/${sessionId}/result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accepted: false, comment: "second" }),
+      }),
+    );
+    expect(second.status).toBe(409);
+    expect(await second.text()).toBe("Session already completed or timed out");
+  });
+
   it("returns 404 for unknown sessions", async () => {
     const handler = getRouteHandler(resource, `${FEEDBACK_PATH_PREFIX}/:sessionId/result`);
     const request = new Request(`http://127.0.0.1${FEEDBACK_PATH_PREFIX}/missing-id/result`, {

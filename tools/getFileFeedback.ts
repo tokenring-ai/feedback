@@ -5,10 +5,10 @@ import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { FileSystemService } from "@tokenring-ai/filesystem";
+import WebHostService from "@tokenring-ai/web-host/WebHostService";
 import { marked } from "marked";
 import open from "open";
 import { z } from "zod";
-import WebHostService from "@tokenring-ai/web-host/WebHostService";
 import FeedbackService from "../FeedbackService.ts";
 import { toRejectedFilePath } from "../rejectedFilePath.ts";
 

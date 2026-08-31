@@ -1,5 +1,5 @@
 import type { TokenRingService } from "@tokenring-ai/app/types";
-import type WebHostService from "@tokenring-ai/web-host/WebHostService.ts";
+import type WebHostService from "@tokenring-ai/web-host/WebHostService";
 
 export const FEEDBACK_PATH_PREFIX = "/feedback";
 
@@ -76,6 +76,8 @@ export default class FeedbackService implements TokenRingService {
 
     if (timeoutMs > 0) {
       timeoutId = setTimeout(() => {
+        // Prevent unhandled rejection if nobody is awaiting when the timer fires.
+        void session.promise.catch(() => {});
         session.reject(new Error("Feedback timeout: no response received"));
         // Drop the session so further HTTP hits return 404.
         this.sessions.delete(id);
@@ -92,7 +94,7 @@ export default class FeedbackService implements TokenRingService {
 
   completeSession(id: string, result: FeedbackSubmission): boolean {
     const session = this.sessions.get(id);
-    if (!session) return false;
+    if (!session || session.settled) return false;
     session.resolve(result);
     return true;
   }

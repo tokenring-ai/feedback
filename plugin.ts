@@ -13,11 +13,11 @@ export default {
   version: packageJSON.version,
   description: packageJSON.description,
   install(app) {
-    const feedbackService = app.addService(new FeedbackService());
+    const feedbackService = app.addService(FeedbackService, new FeedbackService());
 
     app.waitForService(ChatService, chatService => chatService.addTools(tools));
 
-    app.services.waitForItemByType(WebHostService, webHostService => {
+    app.waitForService(WebHostService, webHostService => {
       webHostService.registerResource("feedback", new FeedbackResource(feedbackService));
     });
   },

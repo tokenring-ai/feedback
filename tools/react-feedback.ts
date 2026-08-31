@@ -5,11 +5,11 @@ import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { FileSystemService } from "@tokenring-ai/filesystem";
+import WebHostService from "@tokenring-ai/web-host/WebHostService";
 import esbuild from "esbuild";
 import { externalGlobalPlugin } from "esbuild-plugin-external-global";
 import open from "open";
 import { z } from "zod";
-import WebHostService from "@tokenring-ai/web-host/WebHostService";
 import FeedbackService from "../FeedbackService.ts";
 import { toRejectedFilePath } from "../rejectedFilePath.ts";
 
@@ -189,11 +189,33 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
 
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script>window.JSX = { "jsx": React.createElement, "jsxs": React.createElement};</script>
+    <script>
+      window.JSX = {
+        Fragment: React.Fragment,
+        jsx: function (type, props, key) {
+          if (key != null) props = Object.assign({}, props, { key: key });
+          return React.createElement(type, props);
+        },
+        jsxs: function (type, props, key) {
+          if (key != null) props = Object.assign({}, props, { key: key });
+          return React.createElement(type, props);
+        }
+      };
+    </script>
     <script src="${bundlePath}"></script>
     <script>
       var root = window.ReactDOM.createRoot(document.getElementById('root'));
-      root.render(React.createElement(window.App.default));
+      try {
+        var Component = (window.App && window.App.default) || window.App;
+        if (typeof Component !== "function") {
+          throw new Error("No default export found. Use 'export default' for your React component.");
+        }
+        root.render(React.createElement(Component));
+      } catch (e) {
+        document.getElementById('root').innerHTML =
+          '<div style="padding:20px;color:red;"><h2>Render Error</h2><pre>' +
+          (e && e.message ? e.message : String(e)) + '</pre></div>';
+      }
 
       // Handle form submission and button clicks
       document.addEventListener('DOMContentLoaded', function() {
