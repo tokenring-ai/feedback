@@ -30,6 +30,59 @@ function parseSessionPath(pathname: string): { sessionId: string; relative: stri
 }
 
 /**
+ * Files a tool wrote (the content under review) run sandboxed: an opaque origin, even when opened
+ * directly, so their scripts cannot use the app's session, open its RPC socket, or post the review.
+ */
+const CONTENT_HEADERS = {
+  "Content-Security-Policy": "sandbox allow-scripts allow-modals allow-popups allow-forms",
+  "X-Content-Type-Options": "nosniff",
+};
+
+/** The review page itself: the trusted Accept/Reject bar, with the content in a sandboxed frame. */
+function reviewPage(nonce: string): string {
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Review</title>
+    <style>
+      html, body { margin: 0; height: 100%; font-family: sans-serif; }
+      body { display: flex; flex-direction: column; }
+      #bar { display: flex; gap: 8px; padding: 8px; background: #f0f0f0; align-items: flex-start; border-bottom: 1px solid #ccc; }
+      #bar button { padding: 6px 12px; border: 0; border-radius: 4px; cursor: pointer; color: white; }
+      #accept { background: #2e8b57; }
+      #reject { background: #c0392b; }
+      #comment { flex: 1; min-height: 3lh; padding: 6px; }
+      iframe { flex: 1; border: 0; width: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <button type="button" id="accept">Accept</button>
+      <button type="button" id="reject">Reject</button>
+      <textarea id="comment" placeholder="Enter your comments here..."></textarea>
+    </div>
+    <iframe src="./content.html" sandbox="allow-scripts allow-modals allow-popups allow-forms" title="Content under review"></iframe>
+    <script nonce="${nonce}">
+      function submit(accepted) {
+        fetch("./result", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accepted: accepted, comment: document.getElementById("comment").value }),
+        }).then(function (response) {
+          document.body.textContent = response.ok ? "Feedback submitted. You can close this window." : "Failed to submit feedback.";
+        }, function (error) {
+          document.body.textContent = "Error submitting feedback: " + error;
+        });
+      }
+      document.getElementById("accept").addEventListener("click", function () { submit(true); });
+      document.getElementById("reject").addEventListener("click", function () { submit(false); });
+    </script>
+  </body>
+</html>`;
+}
+
+/**
  * Serves browser feedback UIs and collects accept/reject posts on the shared WebHost,
  * analogous to {@link GoogleOAuthCallbackResource}.
  */
@@ -115,6 +168,21 @@ export default class FeedbackResource implements WebResource {
         relative = "index.html";
       }
 
+      // The review page is always this one, never a file the tool wrote: the content is shown in
+      // its sandboxed frame (content.html).
+      if (relative === "index.html") {
+        const nonce = crypto.randomUUID().replaceAll("-", "");
+        return new Response(request.method === "HEAD" ? null : reviewPage(nonce), {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; frame-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'`,
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+          },
+        });
+      }
+
       // Resolve session root (follow macOS /tmp symlinks when possible).
       let rootDir = path.resolve(session.rootDir);
       try {
@@ -145,13 +213,14 @@ export default class FeedbackResource implements WebResource {
         return new Response(null, {
           status: 200,
           headers: {
+            ...CONTENT_HEADERS,
             "Content-Type": file.type || "application/octet-stream",
             "Content-Length": String(stats.size),
           },
         });
       }
 
-      return new Response(file, { status: 200 });
+      return new Response(file, { status: 200, headers: { ...CONTENT_HEADERS, "Content-Type": file.type || "application/octet-stream" } });
     };
   }
 }

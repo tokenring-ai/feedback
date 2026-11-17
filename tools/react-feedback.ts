@@ -96,9 +96,10 @@ async function execute({ file, code }: z.output<typeof inputSchema>, agent: Agen
       throw new ToolCallError(name, `Failed to bundle React component: ${detail}`);
     }
 
-    // 3. Make index.html
+    // 3. Make the content page
     const html = genHTML({ bundlePath: "./bundle.js" });
-    await fs.writeFile(path.join(tmp, "index.html"), html, "utf8");
+    // The component's page; FeedbackResource serves the review page around it (in a sandboxed frame).
+    await fs.writeFile(path.join(tmp, "content.html"), html, "utf8");
 
     // 4. Register session only after files are ready
     const session = feedbackService.createSession(tmp);
@@ -150,41 +151,9 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
 <html>
   <head>
     <meta charset="utf-8"/>
-    <style>
-      body { margin-top: 6lh; font-family: sans-serif; }
-      #overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        display: flex;
-        gap: 8px;
-        padding: 8px;
-        background: #eee;
-        z-index: 999;
-        align-items: flex-start;
-      }
-      #overlay button {
-        padding: 6px 12px;
-        border: 0;
-        border-radius: 4px;
-        cursor: pointer;
-      }
-      #accept { background: #77dd77; }
-      #reject { background: #ff6961; }
-      #commentBox {
-        flex: 1;
-        min-height: 5lh;
-        padding: 6px;
-      }
-    </style>
+    <style>body { font-family: sans-serif; }</style>
   </head>
   <body>
-    <div id="overlay">
-      <button type="button" id="accept">Accept</button>
-      <button type="button" id="reject">Reject</button>
-      <textarea id="commentBox" rows="5" name="comment" placeholder="Enter your comments here..."></textarea>
-    </div>
     <div id="root"></div>
 
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -212,33 +181,11 @@ function genHTML({ bundlePath }: { bundlePath: string }) {
         }
         root.render(React.createElement(Component));
       } catch (e) {
-        document.getElementById('root').innerHTML =
-          '<div style="padding:20px;color:red;"><h2>Render Error</h2><pre>' +
-          (e && e.message ? e.message : String(e)) + '</pre></div>';
+        var pre = document.createElement('pre');
+        pre.textContent = 'Render Error: ' + (e && e.message ? e.message : String(e));
+        pre.style.color = 'red';
+        document.getElementById('root').appendChild(pre);
       }
-
-      // Handle form submission and button clicks
-      document.addEventListener('DOMContentLoaded', function() {
-        const acceptBtn = document.getElementById('accept');
-        const rejectBtn = document.getElementById('reject');
-        
-        const submit = (accepted) => (e) => {
-         e.preventDefault();
-         const comment = document.getElementById('commentBox').value;
-         // Relative to /feedback/:sessionId/index.html → /feedback/:sessionId/result
-         fetch('./result', {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ accepted: accepted, comment: comment })
-         }).then(() => alert("Submitted!"));
-        };
-        
-        // Handle accept button
-        acceptBtn.addEventListener('click', submit(true));
-        
-        // Handle reject button
-        rejectBtn.addEventListener('click', submit(false))
-      });
     </script>
   </body>
 </html>`;

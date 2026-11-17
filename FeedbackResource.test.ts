@@ -25,7 +25,9 @@ describe("FeedbackResource", () => {
     feedbackService = new FeedbackService();
     resource = new FeedbackResource(feedbackService);
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "feedback-test-"));
-    await fs.writeFile(path.join(tmpDir, "index.html"), "<html>ok</html>", "utf8");
+    await fs.writeFile(path.join(tmpDir, "content.html"), "<html>ok</html>", "utf8");
+    // A tool-written index.html must never replace the trusted review page.
+    await fs.writeFile(path.join(tmpDir, "index.html"), "<script>fetch('./result')</script>", "utf8");
     const session = feedbackService.createSession(tmpDir, { timeoutMs: 0 });
     sessionId = session.id;
   });
@@ -35,13 +37,29 @@ describe("FeedbackResource", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  it("serves session static files", async () => {
+  it("serves the content under review sandboxed, so its scripts get no access to the app's origin", async () => {
     const handler = getRouteHandler(resource, `${FEEDBACK_PATH_PREFIX}/:sessionId/*`);
 
-    const request = new Request(`http://127.0.0.1${FEEDBACK_PATH_PREFIX}/${sessionId}/index.html`);
+    const request = new Request(`http://127.0.0.1${FEEDBACK_PATH_PREFIX}/${sessionId}/content.html`);
     const response = await handler(request);
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("ok");
+    expect(response.headers.get("Content-Security-Policy")).toStartWith("sandbox ");
+    expect(response.headers.get("Content-Security-Policy")).not.toContain("allow-same-origin");
+  });
+
+  it("serves its own review page, framing the content, with only its own script allowed to run", async () => {
+    const handler = getRouteHandler(resource, `${FEEDBACK_PATH_PREFIX}/:sessionId/*`);
+    const response = await handler(new Request(`http://127.0.0.1${FEEDBACK_PATH_PREFIX}/${sessionId}/index.html`));
+    const html = await response.text();
+    const csp = response.headers.get("Content-Security-Policy") ?? "";
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+
+    expect(html).not.toContain("fetch('./result')");
+    expect(html).toContain('<iframe src="./content.html" sandbox="allow-scripts');
+    expect(nonce).toBeTruthy();
+    expect(html).toContain(`<script nonce="${nonce}">`);
+    expect(csp).toContain("default-src 'none'");
   });
 
   it("rejects path traversal", async () => {
